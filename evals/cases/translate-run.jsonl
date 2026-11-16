@@ -1,0 +1,12 @@
+{"id": "translate-run-s1", "skill": "esports-dev:translate-run", "kind": "should", "split": "train", "repo": "esports-analyzer", "prompt": "번역 비용 얼마나 나오는지 봐 줘", "expect": "esports-dev:translate-run"}
+{"id": "translate-run-s2", "skill": "esports-dev:translate-run", "kind": "should", "split": "train", "repo": "esports-analyzer", "prompt": "words_test_1080 번역 돌려 줘", "expect": "esports-dev:translate-run"}
+{"id": "translate-run-s3", "skill": "esports-dev:translate-run", "kind": "should", "split": "train", "repo": "esports-analyzer", "prompt": "조건 C 까지 포함해서 번역하면 토큰 얼마나 들어?", "expect": "esports-dev:translate-run"}
+{"id": "translate-run-s4", "skill": "esports-dev:translate-run", "kind": "should", "split": "train", "repo": "esports-ui", "prompt": "대사 고친 거 반영해서 다시 번역해 줘", "expect": "esports-dev:translate-run"}
+{"id": "translate-run-s5", "skill": "esports-dev:translate-run", "kind": "should", "split": "val", "repo": "esports-analyzer", "prompt": "앞에서 20줄만 A·B·C 로 번역해 봐", "expect": "esports-dev:translate-run"}
+{"id": "translate-run-s6", "skill": "esports-dev:translate-run", "kind": "should", "split": "val", "repo": "esports-api", "prompt": "2세트 영상 영어 번역 시작해 줘", "expect": "esports-dev:translate-run"}
+{"id": "translate-run-n1", "skill": "esports-dev:translate-run", "kind": "should_not", "split": "train", "repo": "esports-analyzer", "prompt": "translate.py 시스템 프롬프트에 챔피언 이름 규칙을 한 줄 추가해 줘", "expect": null}
+{"id": "translate-run-n2", "skill": "esports-dev:translate-run", "kind": "should_not", "split": "train", "repo": "esports-analyzer", "prompt": "번역 결과 JSON 에 sources 가 왜 들어가는지 설명해 줘", "expect": null}
+{"id": "translate-run-n3", "skill": "esports-dev:translate-run", "kind": "should_not", "split": "train", "repo": "esports-analyzer", "prompt": "받아쓰기만 다시 돌려 줘", "expect": "esports-dev:pipeline-run"}
+{"id": "translate-run-n4", "skill": "esports-dev:translate-run", "kind": "should_not", "split": "train", "repo": "esports-ui", "prompt": "번역 예상 비용 표시를 원화로 바꿔 줘", "expect": null}
+{"id": "translate-run-n5", "skill": "esports-dev:translate-run", "kind": "should_not", "split": "val", "repo": "esports-analyzer", "prompt": "번역 작업이 중간에 멈췄어. 왜 그런지 봐 줘", "expect": "esports-dev:job-debug"}
+{"id": "translate-run-n6", "skill": "esports-dev:translate-run", "kind": "should_not", "split": "val", "repo": "esports-analyzer", "prompt": "이 README 를 영어로 번역해 줘", "expect": null}

@@ -1,0 +1,12 @@
+{"id": "pipeline-run-s1", "skill": "esports-dev:pipeline-run", "kind": "should", "split": "train", "repo": "esports-analyzer", "prompt": "asr 만 다시 돌려 줘", "expect": "esports-dev:pipeline-run"}
+{"id": "pipeline-run-s2", "skill": "esports-dev:pipeline-run", "kind": "should", "split": "train", "repo": "esports-analyzer", "prompt": "words_test_1080.mp4 전처리부터 화면 OCR 까지 돌려 줘", "expect": "esports-dev:pipeline-run"}
+{"id": "pipeline-run-s3", "skill": "esports-dev:pipeline-run", "kind": "should", "split": "train", "repo": "esports-analyzer", "prompt": "roi_ocr sample_fps 를 1로 낮춰서 다시 돌려 봐", "expect": "esports-dev:pipeline-run"}
+{"id": "pipeline-run-s4", "skill": "esports-dev:pipeline-run", "kind": "should", "split": "train", "repo": "esports-api", "prompt": "새로 받은 영상 words_4_2R.mov 분석 돌려 줘", "expect": "esports-dev:pipeline-run"}
+{"id": "pipeline-run-s5", "skill": "esports-dev:pipeline-run", "kind": "should", "split": "val", "repo": "esports-analyzer", "prompt": "segments 부터 hls 까지만 실행해 줘", "expect": "esports-dev:pipeline-run"}
+{"id": "pipeline-run-s6", "skill": "esports-dev:pipeline-run", "kind": "should", "split": "val", "repo": "esports-ui", "prompt": "화면 OCR 결과가 이상한데 그 단계만 재실행해 줘", "expect": "esports-dev:pipeline-run"}
+{"id": "pipeline-run-n1", "skill": "esports-dev:pipeline-run", "kind": "should_not", "split": "train", "repo": "esports-analyzer", "prompt": "asr.py 에서 VAD 임계값 기본값을 0.5 로 바꿔 줘", "expect": null}
+{"id": "pipeline-run-n2", "skill": "esports-dev:pipeline-run", "kind": "should_not", "split": "train", "repo": "esports-analyzer", "prompt": "번역 조건 A, B 로 돌려 줘", "expect": "esports-dev:translate-run"}
+{"id": "pipeline-run-n3", "skill": "esports-dev:pipeline-run", "kind": "should_not", "split": "train", "repo": "esports-analyzer", "prompt": "run_pipeline 이 단계 실행 순서를 어떻게 정하는지 설명해 줘", "expect": null}
+{"id": "pipeline-run-n4", "skill": "esports-dev:pipeline-run", "kind": "should_not", "split": "train", "repo": "esports-analyzer", "prompt": "오브젝트 타이머를 읽는 분석 단계를 새로 넣고 싶어", "expect": "esports-dev:add-stage"}
+{"id": "pipeline-run-n5", "skill": "esports-dev:pipeline-run", "kind": "should_not", "split": "val", "repo": "esports-api", "prompt": "분석 돌린 게 실패로 나오는데 로그 좀 봐 줘", "expect": "esports-dev:job-debug"}
+{"id": "pipeline-run-n6", "skill": "esports-dev:pipeline-run", "kind": "should_not", "split": "val", "repo": "esports-analyzer", "prompt": "이 파이프라인을 AWS Batch 로 돌리려면 어떻게 구성해?", "expect": null}

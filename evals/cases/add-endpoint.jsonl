@@ -1,0 +1,12 @@
+{"id": "add-endpoint-s1", "skill": "esports-dev:add-endpoint", "kind": "should", "split": "train", "repo": "esports-api", "prompt": "스펙 6번 GET /games/{id}/cases 엔드포인트 만들어 줘", "expect": "esports-dev:add-endpoint"}
+{"id": "add-endpoint-s2", "skill": "esports-dev:add-endpoint", "kind": "should", "split": "train", "repo": "esports-api", "prompt": "/games 응답에 검수 진행률 필드를 추가해 줘", "expect": "esports-dev:add-endpoint"}
+{"id": "add-endpoint-s3", "skill": "esports-dev:add-endpoint", "kind": "should", "split": "train", "repo": "esports-analyzer", "prompt": "/jobs 응답에 진행률 퍼센트를 넣어 줘", "expect": "esports-dev:add-endpoint"}
+{"id": "add-endpoint-s4", "skill": "esports-dev:add-endpoint", "kind": "should", "split": "train", "repo": "esports-ui", "prompt": "세트별 번역 토큰 사용량을 화면에 보여 주고 싶어. api 호출이 하나 필요해", "expect": "esports-dev:add-endpoint"}
+{"id": "add-endpoint-s5", "skill": "esports-dev:add-endpoint", "kind": "should", "split": "val", "repo": "esports-api", "prompt": "스킬 사용 기록을 받는 POST /skill-usage 를 만들어 줘", "expect": "esports-dev:add-endpoint"}
+{"id": "add-endpoint-s6", "skill": "esports-dev:add-endpoint", "kind": "should", "split": "val", "repo": "esports-analyzer", "prompt": "/videos 에 폴더로 거르는 파라미터를 추가해 줘", "expect": "esports-dev:add-endpoint"}
+{"id": "add-endpoint-n1", "skill": "esports-dev:add-endpoint", "kind": "should_not", "split": "train", "repo": "esports-api", "prompt": "game_list 뷰 쿼리가 느려. select_related 넣어 줘", "expect": null}
+{"id": "add-endpoint-n2", "skill": "esports-dev:add-endpoint", "kind": "should_not", "split": "train", "repo": "esports-ui", "prompt": "세트 화면 탭 색을 좀 더 진하게 해 줘", "expect": null}
+{"id": "add-endpoint-n3", "skill": "esports-dev:add-endpoint", "kind": "should_not", "split": "train", "repo": "esports-api", "prompt": "test_games.py 에 에러 경우 테스트를 하나 더 넣어 줘", "expect": null}
+{"id": "add-endpoint-n4", "skill": "esports-dev:add-endpoint", "kind": "should_not", "split": "train", "repo": "esports-analyzer", "prompt": "evaluate 단계를 추가해 줘", "expect": "esports-dev:add-stage"}
+{"id": "add-endpoint-n5", "skill": "esports-dev:add-endpoint", "kind": "should_not", "split": "val", "repo": "esports-api", "prompt": "API Gateway 에 Lambda 를 붙여서 엔드포인트를 만들려면?", "expect": null}
+{"id": "add-endpoint-n6", "skill": "esports-dev:add-endpoint", "kind": "should_not", "split": "val", "repo": "esports-api", "prompt": "/games/3 이 500 을 내. 원인 찾아 줘", "expect": null}

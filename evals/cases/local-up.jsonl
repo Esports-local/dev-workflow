@@ -1,0 +1,12 @@
+{"id": "local-up-s1", "skill": "esports-dev:local-up", "kind": "should", "split": "train", "repo": "esports-api", "prompt": "로컬에서 api 띄워 줘", "expect": "esports-dev:local-up"}
+{"id": "local-up-s2", "skill": "esports-dev:local-up", "kind": "should", "split": "train", "repo": "esports-ui", "prompt": "화면 확인하게 서버 좀 올려 줘", "expect": "esports-dev:local-up"}
+{"id": "local-up-s3", "skill": "esports-dev:local-up", "kind": "should", "split": "train", "repo": "esports-analyzer", "prompt": "analyzer 컨테이너 떠 있는지 보고 로그도 보여 줘", "expect": "esports-dev:local-up"}
+{"id": "local-up-s4", "skill": "esports-dev:local-up", "kind": "should", "split": "train", "repo": "esports-api", "prompt": "작업 끝났으니까 띄워 둔 컨테이너 다 내려 줘", "expect": "esports-dev:local-up"}
+{"id": "local-up-s5", "skill": "esports-dev:local-up", "kind": "should", "split": "val", "repo": "esports-ui", "prompt": "localhost:8000 이 안 열려. 다시 띄워 줘", "expect": "esports-dev:local-up"}
+{"id": "local-up-s6", "skill": "esports-dev:local-up", "kind": "should", "split": "val", "repo": "esports-analyzer", "prompt": "requirements 바꿨으니까 다시 빌드해서 전체 재시작해 줘", "expect": "esports-dev:local-up"}
+{"id": "local-up-n1", "skill": "esports-dev:local-up", "kind": "should_not", "split": "train", "repo": "esports-api", "prompt": "docker-compose.yml 에 redis 서비스 하나 추가해 줘", "expect": null}
+{"id": "local-up-n2", "skill": "esports-dev:local-up", "kind": "should_not", "split": "train", "repo": "esports-api", "prompt": "api 테스트 돌려 줘", "expect": null}
+{"id": "local-up-n3", "skill": "esports-dev:local-up", "kind": "should_not", "split": "train", "repo": "esports-ui", "prompt": "분석이 30분째 안 끝나는데 서버 문제인지 봐 줘", "expect": "esports-dev:job-debug"}
+{"id": "local-up-n4", "skill": "esports-dev:local-up", "kind": "should_not", "split": "train", "repo": "esports-api", "prompt": "이 api 를 ECS Fargate 로 배포하려면 어떻게 해야 해?", "expect": null}
+{"id": "local-up-n5", "skill": "esports-dev:local-up", "kind": "should_not", "split": "val", "repo": "esports-analyzer", "prompt": "Dockerfile 을 CUDA 베이스 이미지로 바꾸면 뭐가 달라져?", "expect": null}
+{"id": "local-up-n6", "skill": "esports-dev:local-up", "kind": "should_not", "split": "val", "repo": "esports-api", "prompt": "MinIO 버킷에서 hls 폴더만 공개 읽기인 이유를 설명해 줘", "expect": null}

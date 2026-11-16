@@ -1,0 +1,12 @@
+{"id": "import-game-s1", "skill": "esports-dev:import-game", "kind": "should", "split": "train", "repo": "esports-api", "prompt": "op.gg 32706 경기 정보 가져와서 저장해 줘", "expect": "esports-dev:import-game"}
+{"id": "import-game-s2", "skill": "esports-dev:import-game", "kind": "should", "split": "train", "repo": "esports-api", "prompt": "words_test_1080 분석 결과를 api 에 넣어 줘. 32706 경기 2세트, 한국어 해설이야", "expect": "esports-dev:import-game"}
+{"id": "import-game-s3", "skill": "esports-dev:import-game", "kind": "should", "split": "train", "repo": "esports-analyzer", "prompt": "CLI 로 돌린 결과가 화면 목록에 안 보여. 등록해 줘", "expect": "esports-dev:import-game"}
+{"id": "import-game-s4", "skill": "esports-dev:import-game", "kind": "should", "split": "train", "repo": "esports-ui", "prompt": "세트 영상 목록이 비어 있어. outputs 에 있는 결과 폴더를 등록해 줘", "expect": "esports-dev:import-game"}
+{"id": "import-game-s5", "skill": "esports-dev:import-game", "kind": "should", "split": "val", "repo": "esports-api", "prompt": "https://esports.op.gg/matches/32710 이 경기도 DB 에 넣어 줘", "expect": "esports-dev:import-game"}
+{"id": "import-game-s6", "skill": "esports-dev:import-game", "kind": "should", "split": "val", "repo": "esports-api", "prompt": "영어 해설 결과 폴더 words_eng_test 를 같은 경기 2세트로 넣어 줘", "expect": "esports-dev:import-game"}
+{"id": "import-game-n1", "skill": "esports-dev:import-game", "kind": "should_not", "split": "train", "repo": "esports-api", "prompt": "import_outputs 명령에 --dry-run 옵션을 추가해 줘", "expect": null}
+{"id": "import-game-n2", "skill": "esports-dev:import-game", "kind": "should_not", "split": "train", "repo": "esports-api", "prompt": "Match 모델에 대회 이름 필드 추가해 줘", "expect": null}
+{"id": "import-game-n3", "skill": "esports-dev:import-game", "kind": "should_not", "split": "train", "repo": "esports-analyzer", "prompt": "이 영상 preprocess 부터 asr 까지 돌려 줘", "expect": "esports-dev:pipeline-run"}
+{"id": "import-game-n4", "skill": "esports-dev:import-game", "kind": "should_not", "split": "train", "repo": "esports-ui", "prompt": "영상 추가 화면에서 세트 번호를 드롭다운으로 바꿔 줘", "expect": null}
+{"id": "import-game-n5", "skill": "esports-dev:import-game", "kind": "should_not", "split": "val", "repo": "esports-api", "prompt": "opgg.py 가 경기 페이지에서 어떤 JSON 을 읽는지 설명해 줘", "expect": null}
+{"id": "import-game-n6", "skill": "esports-dev:import-game", "kind": "should_not", "split": "val", "repo": "esports-api", "prompt": "경기 데이터를 DynamoDB 에 넣으려면 테이블을 어떻게 설계해?", "expect": null}

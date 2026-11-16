@@ -1,0 +1,12 @@
+{"id": "roi-config-s1", "skill": "esports-dev:roi-config", "kind": "should", "split": "train", "repo": "esports-analyzer", "prompt": "LCK 중계 화면용 ROI 설정 새로 만들어 줘", "expect": "esports-dev:roi-config"}
+{"id": "roi-config-s2", "skill": "esports-dev:roi-config", "kind": "should", "split": "train", "repo": "esports-analyzer", "prompt": "킬 수 영역 좌표가 조금 어긋난 것 같아. 맞춰 줘", "expect": "esports-dev:roi-config"}
+{"id": "roi-config-s3", "skill": "esports-dev:roi-config", "kind": "should", "split": "train", "repo": "esports-analyzer", "prompt": "팀 이름 T1 이 TI 로 읽혀. OCR 설정 고쳐 줘", "expect": "esports-dev:roi-config"}
+{"id": "roi-config-s4", "skill": "esports-dev:roi-config", "kind": "should", "split": "train", "repo": "esports-analyzer", "prompt": "발로란트 중계 화면 레이아웃을 추가하자", "expect": "esports-dev:roi-config"}
+{"id": "roi-config-s5", "skill": "esports-dev:roi-config", "kind": "should", "split": "val", "repo": "esports-analyzer", "prompt": "골드 영역 검증이 너무 느슨해. 12.3K 형식만 통과하게 해 줘", "expect": "esports-dev:roi-config"}
+{"id": "roi-config-s6", "skill": "esports-dev:roi-config", "kind": "should", "split": "val", "repo": "esports-analyzer", "prompt": "화면 녹화본이라 중계 화면이 가운데만 차지해. OCR 영역을 맞춰 줘", "expect": "esports-dev:roi-config"}
+{"id": "roi-config-n1", "skill": "esports-dev:roi-config", "kind": "should_not", "split": "train", "repo": "esports-analyzer", "prompt": "화면 OCR 다시 돌려 줘", "expect": "esports-dev:pipeline-run"}
+{"id": "roi-config-n2", "skill": "esports-dev:roi-config", "kind": "should_not", "split": "train", "repo": "esports-analyzer", "prompt": "roi_ocr.py 의 change_threshold 가 뭐 하는 값이야?", "expect": null}
+{"id": "roi-config-n3", "skill": "esports-dev:roi-config", "kind": "should_not", "split": "train", "repo": "esports-analyzer", "prompt": "시작 화면 선수 카드를 읽는 단계를 새로 만들자", "expect": "esports-dev:add-stage"}
+{"id": "roi-config-n4", "skill": "esports-dev:roi-config", "kind": "should_not", "split": "train", "repo": "esports-ui", "prompt": "화면 OCR 탭 표를 신뢰도 순으로 정렬할 수 있게 해 줘", "expect": null}
+{"id": "roi-config-n5", "skill": "esports-dev:roi-config", "kind": "should_not", "split": "val", "repo": "esports-analyzer", "prompt": "RapidOCR 대신 Tesseract 를 쓰면 어떨까?", "expect": null}
+{"id": "roi-config-n6", "skill": "esports-dev:roi-config", "kind": "should_not", "split": "val", "repo": "esports-api", "prompt": "screen.py 에서 잡음 구간 거르는 기준을 3장으로 바꿔 줘", "expect": null}

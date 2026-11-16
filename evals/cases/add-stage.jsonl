@@ -1,0 +1,12 @@
+{"id": "add-stage-s1", "skill": "esports-dev:add-stage", "kind": "should", "split": "train", "repo": "esports-analyzer", "prompt": "evaluate 단계 구현하자", "expect": "esports-dev:add-stage"}
+{"id": "add-stage-s2", "skill": "esports-dev:add-stage", "kind": "should", "split": "train", "repo": "esports-analyzer", "prompt": "시작 화면 선수 카드에서 챔피언을 읽는 단계를 추가해 줘", "expect": "esports-dev:add-stage"}
+{"id": "add-stage-s3", "skill": "esports-dev:add-stage", "kind": "should", "split": "train", "repo": "esports-analyzer", "prompt": "화자 구분 단계를 asr 뒤에 넣고 싶어", "expect": "esports-dev:add-stage"}
+{"id": "add-stage-s4", "skill": "esports-dev:add-stage", "kind": "should", "split": "train", "repo": "esports-analyzer", "prompt": "케이스셋 후보를 뽑는 단계를 새로 만들어 줘", "expect": "esports-dev:add-stage"}
+{"id": "add-stage-s5", "skill": "esports-dev:add-stage", "kind": "should", "split": "val", "repo": "esports-api", "prompt": "analyzer 에 죽음 판정 단계를 만들고 결과가 api 까지 저장되게 해 줘", "expect": "esports-dev:add-stage"}
+{"id": "add-stage-s6", "skill": "esports-dev:add-stage", "kind": "should", "split": "val", "repo": "esports-analyzer", "prompt": "리플레이 구간을 판별하는 단계를 추가하자", "expect": "esports-dev:add-stage"}
+{"id": "add-stage-n1", "skill": "esports-dev:add-stage", "kind": "should_not", "split": "train", "repo": "esports-analyzer", "prompt": "hls 단계만 다시 돌려 줘", "expect": "esports-dev:pipeline-run"}
+{"id": "add-stage-n2", "skill": "esports-dev:add-stage", "kind": "should_not", "split": "train", "repo": "esports-analyzer", "prompt": "asr 모델을 large-v3-turbo 로 바꿔 줘", "expect": null}
+{"id": "add-stage-n3", "skill": "esports-dev:add-stage", "kind": "should_not", "split": "train", "repo": "esports-analyzer", "prompt": "stages.py 에서 미구현 단계는 어떻게 건너뛰는 거야?", "expect": null}
+{"id": "add-stage-n4", "skill": "esports-dev:add-stage", "kind": "should_not", "split": "train", "repo": "esports-api", "prompt": "/cases 엔드포인트를 추가해 줘", "expect": "esports-dev:add-endpoint"}
+{"id": "add-stage-n5", "skill": "esports-dev:add-stage", "kind": "should_not", "split": "val", "repo": "esports-analyzer", "prompt": "새 대회 화면용 ROI 설정을 추가해 줘", "expect": "esports-dev:roi-config"}
+{"id": "add-stage-n6", "skill": "esports-dev:add-stage", "kind": "should_not", "split": "val", "repo": "esports-analyzer", "prompt": "단계별 워크플로를 Step Functions 로 짜면 어떨까?", "expect": null}
