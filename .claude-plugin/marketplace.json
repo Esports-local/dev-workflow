@@ -1,0 +1,16 @@
+{
+  "name": "esports",
+  "owner": {
+    "name": "Esports-local"
+  },
+  "metadata": {
+    "description": "Esports-local(esports-analyzer · esports-api · esports-ui) Claude Code 플러그인"
+  },
+  "plugins": [
+    {
+      "name": "esports-dev",
+      "source": "./plugins/esports-dev",
+      "description": "esports 세 레포 개발 절차: 로컬 실행, 경기·영상 등록, 파이프라인·번역 실행, ROI 설정, 엔드포인트·단계 추가, 문서 맞추기, 분석 작업 문제 확인"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "esports-dev",
+  "version": "0.1.0",
+  "description": "esports 세 레포 개발 절차: 로컬 실행, 경기·영상 등록, 파이프라인·번역 실행, ROI 설정, 엔드포인트·단계 추가, 문서 맞추기, 분석 작업 문제 확인",
+  "author": {
+    "name": "Esports-local"
+  }
+}
