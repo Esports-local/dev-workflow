@@ -9,6 +9,9 @@
     python3 evals/run.py --report evals/results/<파일>.jsonl   # 다시 실행하지 않고 집계만
     python3 evals/run.py --resume evals/results/<파일>.jsonl   # 실패했거나 안 돈 실행만 이어서
 
+    python3 evals/run.py --report evals/results/<파일>.jsonl --post http://localhost:8002   # 기록을 api 로 보냄
+
+--post 를 주면 실행이 끝날 때마다 esports-api 의 POST /skills/evals 로 보낸다 (묶음 이름 = 결과 파일 이름).
 사용 한도에 걸리면 남은 실행을 건너뛰고 멈춘다. 한도가 풀린 뒤 --resume 으로 이어서 돌린다.
 
 결과는 evals/results/<시각>-<모델>.jsonl 에 실행 한 번당 한 줄로 쌓인다.
@@ -22,6 +25,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.request
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -68,8 +72,9 @@ def run_once(case: dict, model: str, plugin_dir: Path, root: Path) -> dict:
     started = time.time()
     got = first_tool = error = None
     tokens = 0
+    env = {**os.environ, "ESPORTS_EVAL": "1"}  # 사용 기록 훅이 평가 실행을 실제 사용으로 세지 않게 한다
     proc = subprocess.Popen(cmd, cwd=root / case["repo"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                            text=True)
+                            text=True, env=env)
     try:
         for line in proc.stdout:
             if time.time() - started > TIMEOUT_SEC:
@@ -100,6 +105,22 @@ def run_once(case: dict, model: str, plugin_dir: Path, root: Path) -> dict:
         proc.wait()
     return {"got": got, "first_tool": first_tool, "input_tokens": tokens,
             "sec": round(time.time() - started, 1), "error": error}
+
+
+def post_rows(api: str, batch: str, rows: list[dict]) -> str | None:
+    """실행 기록을 api 의 POST /skills/evals 로 보낸다. 실패하면 이유를 돌려준다 (평가는 계속한다)."""
+    body = json.dumps({"batch": batch, "rows": rows}, ensure_ascii=False).encode()
+    req = urllib.request.Request(api.rstrip("/") + "/skills/evals", data=body,
+                                 headers={"Content-Type": "application/json"})
+    failed = None
+    for wait in (0, 1, 3):  # api 가 잠깐 바쁠 수 있어 몇 번 다시 보낸다
+        time.sleep(wait)
+        try:
+            urllib.request.urlopen(req, timeout=10).read()
+            return None
+        except OSError as e:
+            failed = str(e)
+    return failed
 
 
 def judge(expect: str | None, got: str | None) -> str:
@@ -173,11 +194,17 @@ def main():
                         help="esports 세 레포가 있는 폴더")
     parser.add_argument("--out", type=Path, help="결과 파일 (기본 evals/results/<시각>-<모델>.jsonl)")
     parser.add_argument("--report", type=Path, help="이 결과 파일을 집계만 한다")
+    parser.add_argument("--post", metavar="API", default=os.environ.get("ESPORTS_API"),
+                        help="esports-api 주소 (예: http://localhost:8002). 주면 실행 기록을 보낸다")
     parser.add_argument("--resume", type=Path, help="이 결과 파일에서 실패했거나 안 돈 실행만 이어서 돌린다")
     args = parser.parse_args()
 
     if args.report:
         rows = [json.loads(x) for x in args.report.read_text(encoding="utf-8").splitlines() if x.strip()]
+        if args.post:
+            failed = post_rows(args.post, args.report.stem, rows)
+            print(f"api 전송 실패: {failed}" if failed else f"api 로 {len(rows)}줄 보냄 (묶음 {args.report.stem})",
+                  file=sys.stderr)
         print(report(rows))
         return
 
@@ -193,7 +220,7 @@ def main():
     out = args.resume or args.out or HERE / "results" / f"{datetime.now():%Y%m%d-%H%M%S}-{args.model}.jsonl"
     out.parent.mkdir(parents=True, exist_ok=True)
     rows = []
-    if args.resume:  # 성공한 실행만 남기고, 실패한 줄은 지운 뒤 이어서 쓴다
+    if args.resume and out.exists():  # 성공한 실행만 남기고, 실패한 줄은 지운 뒤 이어서 쓴다
         rows = [r for x in out.read_text(encoding="utf-8").splitlines() if x.strip()
                 for r in [json.loads(x)] if not r.get("error")]
         out.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
@@ -219,11 +246,17 @@ def main():
             if row is None:
                 continue
             rows.append(row)
+            if args.post and not row["error"]:
+                post_rows(args.post, out.stem, [row])  # 화면에 바로 보이게. 빠진 줄은 끝나고 다시 보낸다
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
             f.flush()
             mark = "실패 " + row["error"] if row["error"] else row["verdict"]
             print(f"[{i}/{len(jobs)}] {row['id']} #{row['run']}: {mark} ({row['got'] or row['first_tool']})",
                   file=sys.stderr)
+    if args.post and rows:  # 같은 실행을 다시 보내도 api 가 덮어쓰므로, 중간에 빠진 줄까지 한 번에 맞춘다
+        failed = post_rows(args.post, out.stem, rows)
+        if failed:
+            print(f"api 전송 실패: {failed}. 나중에 --report {out} --post {args.post} 로 다시 보내세요", file=sys.stderr)
     if limit_hit.is_set():
         left = len(cases) * args.repeat - len({(r["id"], r["run"]) for r in rows})
         print(f"\n사용 한도에 걸려 {left}번이 남았습니다. 한도가 풀리면 --resume {out} 으로 이어서 돌리세요")
