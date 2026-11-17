@@ -23,6 +23,8 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import run as evalrun
+
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
 PLUGIN = "esports-dev"
@@ -93,6 +95,8 @@ def failed_tries(name: str) -> int:
     """마지막 채택 뒤로 기각된 개선 시도 수."""
     count = 0
     for entry in load_jsonl(HERE / "history" / name / "log.jsonl"):
+        if entry.get("invalid"):
+            continue  # 평가 환경이 달랐던 시도는 세지 않는다
         count = 0 if entry.get("accepted") else count + 1
     return count
 
@@ -149,7 +153,8 @@ def classify(skill: dict, policy: dict, median_tokens: float | None) -> tuple[st
 def collect(args, policy: dict, now: datetime) -> list[dict]:
     since = now - timedelta(days=policy["window_days"])
     usage = usage_stats(args.usage, since)
-    evals = eval_stats(load_jsonl(args.results))
+    # 결과 파일의 옛 정답 대신 지금 테스트 요청의 정답으로 판정한다 (화면에서 바꾸거나 뺀 것 반영)
+    evals = eval_stats(evalrun.rejudge(load_jsonl(args.results), evalrun.load_cases(HERE / "cases", None, None)))
     skills = []
     for path in sorted((REPO / "plugins" / PLUGIN / "skills").glob("*/SKILL.md")):
         name = path.parent.name

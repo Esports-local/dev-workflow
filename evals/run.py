@@ -65,12 +65,13 @@ def run_once(case: dict, model: str, plugin_dir: Path, root: Path) -> dict:
     """요청 하나를 한 번 실행하고 첫 도구 호출을 돌려준다.
 
     Returns:
-        {"got": 고른 스킬 | None, "first_tool": 첫 도구 이름 | None, "input_tokens", "sec", "error"}
+        {"got": 고른 스킬 | None, "first_tool": 첫 도구 이름 | None, "first_input": 첫 도구 입력 요약 | None,
+         "input_tokens", "sec", "error"}
     """
     cmd = ["claude", "-p", case["prompt"], "--model", model, "--output-format", "stream-json", "--verbose",
            "--plugin-dir", str(plugin_dir), "--no-session-persistence"]
     started = time.time()
-    got = first_tool = error = None
+    got = first_tool = first_input = error = None
     tokens = 0
     env = {**os.environ, "ESPORTS_EVAL": "1"}  # 사용 기록 훅이 평가 실행을 실제 사용으로 세지 않게 한다
     proc = subprocess.Popen(cmd, cwd=root / case["repo"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
@@ -97,14 +98,27 @@ def run_once(case: dict, model: str, plugin_dir: Path, root: Path) -> dict:
             call = next((b for b in message.get("content", []) if b.get("type") == "tool_use"), None)
             if call:
                 first_tool = call["name"]
+                first_input = tool_input_text(call.get("input") or {})
                 if first_tool == "Skill":
                     got = normalize(call.get("input", {}).get("skill"))
                 break
     finally:
         proc.kill()
         proc.wait()
-    return {"got": got, "first_tool": first_tool, "input_tokens": tokens,
+    return {"got": got, "first_tool": first_tool, "first_input": first_input, "input_tokens": tokens,
             "sec": round(time.time() - started, 1), "error": error}
+
+
+INPUT_KEYS = ("command", "skill", "file_path", "pattern", "path", "url", "query", "description")
+MAX_INPUT = 200
+
+
+def tool_input_text(data: dict) -> str:
+    """첫 도구 호출의 입력을 짧은 글로 (Bash 명령, Read 파일 경로 등). 왜 스킬 대신 그 도구를 골랐는지 보려고 남긴다."""
+    key = next((k for k in INPUT_KEYS if data.get(k)), None)
+    text = str(data[key]) if key else json.dumps(data, ensure_ascii=False)
+    text = " ".join(text.split()).replace(str(Path.home()), "~")  # 결과 파일은 공개 레포에 올라가므로 홈 경로를 숨긴다
+    return text if len(text) <= MAX_INPUT else text[:MAX_INPUT - 1] + "…"
 
 
 def post_rows(api: str, batch: str, rows: list[dict]) -> str | None:
@@ -134,6 +148,25 @@ def judge(expect: str | None, got: str | None) -> str:
     if ours == expect:
         return "correct"
     return "miss" if ours is None else "wrong"
+
+
+def rejudge(rows: list[dict], cases: list[dict]) -> list[dict]:
+    """실행 기록을 지금 테스트 요청의 정답으로 다시 판정한다.
+
+    결과 파일에는 돌릴 때의 정답이 남아 있다. 화면에서 정답을 바꾸거나 요청을 빼면(실행기가 evals/cases 에 반영)
+    바뀐 정답으로 다시 판정하고, 뺀 요청의 실행은 버린다.
+    """
+    by_id = {c["id"]: c for c in cases}
+    out = []
+    for r in rows:
+        case = by_id.get(r["id"])
+        if case is None:
+            continue
+        if r.get("error"):
+            out.append(r)
+            continue
+        out.append({**r, "kind": case["kind"], "expect": case["expect"], "verdict": judge(case["expect"], r["got"])})
+    return out
 
 
 def report(rows: list[dict]) -> str:
@@ -173,6 +206,8 @@ def report(rows: list[dict]) -> str:
             what = ", ".join(f"{k} {v}번" for k, v in first.most_common())
             lines.append(f"- [{case_id}] {bad}/{n} · {r['split']} · {r['repo']} · \"{r['prompt']}\"")
             lines.append(f"    기대 {r['expect'] or '스킬 없음'} → {what}")
+            for cmd in sorted({x["first_input"] for x in by_case[case_id] if x["verdict"] == verdict and x.get("first_input")}):
+                lines.append(f"      첫 입력: {cmd}")
     tokens = sum(r.get("input_tokens", 0) for r in rows)
     lines.append("")
     lines.append(f"입력 토큰 합계 {tokens:,} (실행당 평균 {tokens // len(rows):,})")
@@ -185,6 +220,7 @@ def main():
     parser.add_argument("--repeat", type=int, default=2, help="요청마다 실행 횟수")
     parser.add_argument("--skill", action="append", help="이 스킬의 테스트만 (여러 번 쓸 수 있음, 접두어 없이)")
     parser.add_argument("--split", choices=["train", "val"])
+    parser.add_argument("--case", action="append", help="이 id 의 테스트 요청만 (여러 번 쓸 수 있음, 틀린 요청 다시 재기용)")
     parser.add_argument("--limit", type=int, help="앞에서부터 이만큼의 요청만 (시험 실행용)")
     parser.add_argument("--workers", type=int, default=2, help="동시에 실행할 수")
     parser.add_argument("--cases", type=Path, default=HERE / "cases")
@@ -201,6 +237,7 @@ def main():
 
     if args.report:
         rows = [json.loads(x) for x in args.report.read_text(encoding="utf-8").splitlines() if x.strip()]
+        rows = rejudge(rows, load_cases(args.cases, None, None))
         if args.post:
             failed = post_rows(args.post, args.report.stem, rows)
             print(f"api 전송 실패: {failed}" if failed else f"api 로 {len(rows)}줄 보냄 (묶음 {args.report.stem})",
@@ -209,6 +246,8 @@ def main():
         return
 
     cases = load_cases(args.cases, args.skill, args.split)
+    if args.case:
+        cases = [c for c in cases if c["id"] in set(args.case)]
     if args.limit:
         cases = cases[:args.limit]
     if not cases:
@@ -253,6 +292,7 @@ def main():
             mark = "실패 " + row["error"] if row["error"] else row["verdict"]
             print(f"[{i}/{len(jobs)}] {row['id']} #{row['run']}: {mark} ({row['got'] or row['first_tool']})",
                   file=sys.stderr)
+    rows = rejudge(rows, load_cases(args.cases, None, None))  # 이어서 돌린 옛 줄도 지금 정답으로
     if args.post and rows:  # 같은 실행을 다시 보내도 api 가 덮어쓰므로, 중간에 빠진 줄까지 한 번에 맞춘다
         failed = post_rows(args.post, out.stem, rows)
         if failed:

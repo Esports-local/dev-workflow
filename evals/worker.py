@@ -9,7 +9,9 @@ api 는 Docker 안에 있어서 `claude` 를 실행할 수 없다. 이 실행기
 결과는 evals/results/<묶음>.jsonl 에 쌓이고, 같은 묶음에서 이미 돈 실행은 건너뛴다.
 
 테스트 요청의 기준은 evals/cases/*.jsonl 이다. 실행기는 이 파일들을 api 에 알려 주고, 화면에서 추가한 요청을 받아
-해당 스킬 파일 끝에 옮겨 적는다 (커밋은 사람이 한다).
+해당 스킬 파일 끝에 옮겨 적는다. 화면에서 정답을 바꾸거나 뺀 요청도 파일에 반영한다 (커밋은 사람이 한다).
+
+    python3 evals/worker.py --sync                       # 평가 없이 테스트 요청만 맞춤
 """
 
 import argparse
@@ -44,15 +46,39 @@ def sync_cases(api: str) -> None:
         return [json.loads(x) for p in sorted((HERE / "cases").glob("*.jsonl"))
                 for x in p.read_text(encoding="utf-8").splitlines() if x.strip()]
 
-    pending = call(api, "/skills/cases/sync", {"cases": read()})["pending"]
-    if not pending:
+    d = call(api, "/skills/cases/sync", {"cases": read()})
+    pending, changes = d["pending"], d.get("changes") or []
+    if not pending and not changes:
         return
     for case in pending:
         path = HERE / "cases" / f"{case['skill'].split(':')[-1]}.jsonl"
         with path.open("a", encoding="utf-8") as f:
             f.write(json.dumps({k: case[k] for k in CASE_KEYS}, ensure_ascii=False) + "\n")
         print(f"화면에서 추가한 요청을 옮겼습니다: {path.name} [{case['id']}] {case['prompt']}")
-    call(api, "/skills/cases/sync", {"cases": read()})
+    applied = [case["id"] for case in changes if apply_change(case)]
+    call(api, "/skills/cases/sync", {"cases": read(), "applied": applied})
+
+
+def apply_change(case: dict) -> bool:
+    """화면에서 바꾼 정답(edit)이나 뺀 요청(remove)을 evals/cases/<스킬>.jsonl 에 반영한다."""
+    path = HERE / "cases" / f"{case['skill'].split(':')[-1]}.jsonl"
+    if not path.exists():
+        return False
+    out, found = [], False
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        if row["id"] == case["id"]:
+            found = True
+            if case["change"] == "remove":
+                continue
+            row.update(kind=case["kind"], expect=case["expect"])
+        out.append(json.dumps(row, ensure_ascii=False))
+    path.write_text("".join(x + "\n" for x in out), encoding="utf-8")
+    what = "뺐습니다" if case["change"] == "remove" else f"정답을 {case['expect'] or '스킬 없음'} 으로 바꿨습니다"
+    print(f"화면에서 바꾼 요청을 반영했습니다: {path.name} [{case['id']}] {what}")
+    return found or case["change"] == "remove"
 
 
 def run_job(api: str, job: dict) -> None:
@@ -61,9 +87,14 @@ def run_job(api: str, job: dict) -> None:
     out = HERE / "results" / f"{job['batch']}.jsonl"
     cmd = [sys.executable, str(HERE / "run.py"), "--resume", str(out), "--repeat", str(job["repeat"]),
            "--model", job["model"], "--post", api]
-    for skill in job["skills"]:
-        cmd += ["--skill", skill]
-    print(f"평가 #{job['id']} 시작: {job['batch']} · {', '.join(job['skills']) or '전체'} · {job['repeat']}번씩 · {job['model']}")
+    if job.get("case_ids"):  # 요청을 골랐으면 그것만. 다른 스킬 파일의 요청(정답이 이 스킬)도 있어서 --skill 은 안 준다
+        for case_id in job["case_ids"]:
+            cmd += ["--case", case_id]
+    else:
+        for skill in job["skills"]:
+            cmd += ["--skill", skill]
+    print(f"평가 #{job['id']} 시작: {job['batch']} · {', '.join(job['skills']) or '전체'}"
+          f"{' · 요청 ' + str(len(job['case_ids'])) + '개' if job.get('case_ids') else ''} · {job['repeat']}번씩 · {job['model']}")
     proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
     done = total = 0
     error = ""
@@ -101,7 +132,12 @@ def main():
     parser.add_argument("--api", default=os.environ.get("ESPORTS_API", "http://localhost:8002"))
     parser.add_argument("--interval", type=float, default=5, help="대기 중인 요청을 물어보는 간격(초)")
     parser.add_argument("--once", action="store_true", help="대기 중인 요청 하나만 돌리고 끝낸다")
+    parser.add_argument("--sync", action="store_true", help="테스트 요청만 맞추고 끝낸다 (평가는 안 돌림)")
     args = parser.parse_args()
+    if args.sync:
+        sync_cases(args.api)
+        print("테스트 요청을 맞췄습니다")
+        return
     print(f"실행기 시작: {args.api} (끄려면 Ctrl+C)")
     warned, tick = False, 0
     while True:
