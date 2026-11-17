@@ -55,6 +55,7 @@ python3 evals/run.py --report evals/results/<파일>.jsonl
 ```
 
 요청마다 `claude -p`를 해당 레포 폴더에서 실행해 첫 도구 호출만 읽고 끊는다. 첫 호출이 Skill 이 아니면 스킬을 안 쓴 것으로 본다.
+첫 도구의 입력(Bash 명령, Read 파일 경로 등, 200자까지, 홈 경로는 `~`)을 `first_input`으로 남겨 스킬 대신 무엇을 하려 했는지 본다.
 esports 세 레포는 이 레포와 같은 폴더에 나란히 있어야 한다 (다르면 `--root` 또는 `ESPORTS_ROOT`).
 
 `--post http://localhost:8002` 를 주면 실행 기록을 esports-api 로 보내고, esports-ui 의 `/skills/` 화면에서 볼 수 있다.
@@ -65,7 +66,13 @@ esports 세 레포는 이 레포와 같은 폴더에 나란히 있어야 한다 
 
 ```
 python3 evals/worker.py        # 끄려면 Ctrl+C
+python3 evals/worker.py --sync # 평가 없이 테스트 요청만 맞춤
 ```
+
+화면에서 "틀린 요청만"을 고르면 그 요청 id 만 `run.py --case`로 돌린다. `improve.py --post <api>`는 시도 기록(`evals/history/<스킬>/log.jsonl`)도 보내 화면의 "설명 개선 시도"에 나온다 (기록만 보낼 때 `--post-history`).
+
+화면에서 추가한 테스트 요청, "틀린 요청" 표에서 바꾼 정답·뺀 요청은 실행기가 `evals/cases/*.jsonl`에 반영한다 (커밋은 사람이).
+결과 파일에는 돌릴 때의 정답이 남아 있지만 `run.py --report`, `improve.py`, `classify.py`는 지금 테스트 요청의 정답으로 다시 판정하고, 뺀 요청은 버린다.
 
 ## 사용 기록
 
