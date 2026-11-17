@@ -37,6 +37,12 @@ plugins/esports-dev/
 evals/cases/<스킬>.jsonl     # 테스트 요청 (스킬마다 써야 하는 요청 6 + 쓰면 안 되는 요청 6, train 8 · val 4)
 evals/run.py                 # 선택 평가
 evals/worker.py              # 화면에서 요청한 평가를 맥에서 돌리는 실행기
+evals/improve.py             # 설명 자동 개선 (실패 분석 → 수정안 → 전후 비교 → PR)
+evals/history/<스킬>/        # 개선 시도 기록
+evals/classify.py            # 유지 · 개선 · 비활성화 후보 분류
+evals/policy.json            # 분류 기준값
+evals/reports/               # 분류 보고서
+POLICY.md                    # 분류 기준
 evals/results/<묶음>.jsonl   # 평가 실행 기록
 ```
 
@@ -69,3 +75,27 @@ python3 evals/worker.py        # 끄려면 Ctrl+C
 - 성공 = 스킬을 부른 턴이 끝까지 감. 실패 = 끝나기 전에 끊기고 새 요청이 들어옴
 - 항상 `~/.claude/esports-dev/usage.jsonl` 에 먼저 적고, esports-api 가 켜져 있으면 안 보낸 줄을 `POST /skills/usage` 로 보낸다 (주소는 `ESPORTS_API`, 기본 `http://localhost:8002`)
 - 선택 평가가 띄운 세션은 기록하지 않는다
+
+## 설명 자동 개선
+
+```
+python3 evals/improve.py --skill add-endpoint --propose-only   # 수정안만 받아 보기 (평가 안 돌림)
+python3 evals/improve.py --skill add-endpoint                  # 최대 3번 시도, 채택되면 SKILL.md 를 고침
+python3 evals/improve.py --skill add-endpoint --pr             # 채택되면 브랜치와 PR 까지
+```
+
+1. 개선용(train) 실패 요청과 지난 시도 기록을 `claude -p`에 주고 원인 가설 하나와 새 설명을 받는다
+2. 플러그인 복사본에 적용해 개선용 요청을 1번씩 돌린다. 안 오르면 기각
+3. 그 스킬의 요청 전부를 2번씩, 다른 스킬의 검증용(val) 요청을 1번씩 돌린다
+4. 검증용 점수가 오르고 다른 스킬이 깨지지 않으면 채택한다. 기각이면 결과를 다음 시도에 알려 준다
+
+수정안을 만드는 쪽에는 검증용 요청 문장을 보여 주지 않는다. 시도마다 가설·변경·요청별 전후 결과가 `evals/history/<스킬>/log.jsonl`에 남는다.
+채택된 결과는 `evals/results/after-1-<모델>.jsonl`에 쌓여 화면의 "수정 후 1차"로 보인다.
+
+## 유지 · 정리 분류
+
+```
+python3 evals/classify.py --out evals/reports/classify-<날짜>.md
+```
+
+사용 기록, 선택 평가, 개선 시도 기록으로 스킬을 유지 / 개선 / 비활성화 후보 / 보류로 나눈 보고서를 만든다. 아무것도 바꾸지 않는다. 기준은 [POLICY.md](POLICY.md).
