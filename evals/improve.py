@@ -7,6 +7,8 @@
     python3 evals/improve.py --skill add-endpoint                # 최대 3번 시도, 채택되면 SKILL.md 를 고친다
     python3 evals/improve.py --skill add-endpoint --pr           # 채택되면 브랜치·PR 까지 만든다
     python3 evals/improve.py --skill add-endpoint --propose-only # 수정안만 받아 보고 평가는 하지 않는다
+    python3 evals/improve.py --skill add-endpoint --dry-run      # 모델 호출 없이 실행 계획과 프롬프트만 본다
+    python3 evals/improve.py --skill add-endpoint --post-history --post http://localhost:8002  # 시도 기록만 화면에
 
 - 수정안을 만들 때는 개선용(train) 요청만 보여 준다. 검증용(val) 요청 문장은 보여 주지 않는다
 - 기준 결과(--baseline, 기본 evals/results/baseline-<모델>.jsonl)에 없는 실행은 먼저 지금 설명으로 돌려 채운다
@@ -23,6 +25,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
@@ -70,10 +73,12 @@ def all_descriptions(plugin_dir: Path) -> dict[str, str]:
 # ---------------------------------------------------------------- 평가 실행
 
 def load_rows(path: Path) -> list[dict]:
+    """결과 파일을 읽어 지금 테스트 요청의 정답으로 다시 판정한다 (뺀 요청은 버림)."""
     if not path.exists():
         return []
-    return [r for x in path.read_text(encoding="utf-8").splitlines() if x.strip()
+    rows = [r for x in path.read_text(encoding="utf-8").splitlines() if x.strip()
             for r in [json.loads(x)] if not r.get("error")]
+    return evalrun.rejudge(rows, evalrun.load_cases(HERE / "cases", None, None))
 
 
 def ensure_runs(cases: list[dict], repeat: int, path: Path, plugin_dir: Path, args) -> list[dict]:
@@ -139,7 +144,8 @@ def ledger(before: dict[str, float], after: dict[str, float], cases: list[dict])
 
 def what_happened(rows: list[dict]) -> str:
     bad = [r for r in rows if r["verdict"] != "correct"]
-    did = sorted({(r["got"] or f"스킬 없이 {r['first_tool'] or '바로 답함'}") for r in bad})
+    did = sorted({(r["got"] or f"스킬 없이 {r['first_tool'] or '바로 답함'}"
+                   + (f" `{r['first_input']}`" if r.get("first_input") else "")) for r in bad})
     return ", ".join(did)
 
 
@@ -162,9 +168,12 @@ def build_prompt(name: str, descriptions: dict[str, str], train: list[dict], row
     others = "\n".join(f"- {PLUGIN}:{k}: {v}" for k, v in descriptions.items() if k != name)
     tries = ""
     for h in history:
+        if h.get("invalid"):
+            continue  # 평가 환경이 달랐던 시도는 근거로 쓰지 않는다
         fixed = [x["prompt"] for x in h.get("ledger", []) if x["status"] == "fixed" and x["split"] == "train"]
         broken = [x["prompt"] for x in h.get("ledger", []) if x["status"] == "broken" and x["split"] == "train"]
-        tries += (f'\n### 시도 {h["try"]} ({"채택" if h["accepted"] else "기각"}: {h["reason"]})\n'
+        cause = f' · 원인 종류 {h["cause"]}' if h.get("cause") else ""
+        tries += (f'\n### 시도 {h["try"]} ({"채택" if h["accepted"] else "기각"}: {h["reason"]}{cause})\n'
                   f'가설: {h["hypothesis"]}\n설명: {h["description"]}\n'
                   f'개선용에서 고쳐진 요청: {fixed or "없음"}\n개선용에서 새로 깨진 요청: {broken or "없음"}\n'
                   f'검증용에서 새로 깨진 요청 수: {h.get("val_broken", 0)}, 다른 스킬에서 새로 깨진 요청 수: {h.get("others_broken", 0)}\n')
@@ -185,18 +194,29 @@ Claude 는 사용자의 요청을 받으면 스킬 목록의 이름과 설명만
 ## 맞힌 요청 (개선용, 깨뜨리면 안 됩니다)
 {chr(10).join(passed) or "없음"}
 {"## 지난 시도" + tries if tries else ""}
+## 원인 종류
+틀린 원인은 보통 아래 중 하나입니다.
+- 범위: 틀린 요청의 유형이 지금 설명에 아예 없다.
+- 우선순위: 유형은 설명에 있는데(예시나 비슷한 말이 이미 있다), Claude 가 "간단해 보이니 코드부터 보자"며 스킬을 건너뛴다.
+  → 범위를 더 늘려도 소용없다. 코드를 보기 전에 먼저 불러야 한다는 것과 그 이유(스킬 없이 하면 무엇을 빠뜨리는지)를 적는다.
+- 앞부분: 언제 쓰는지가 파일 목록 같은 세부 뒤에 묻혀 있다. → 첫 문장에서 바로 말하고 세부는 뒤로 보내거나 뺀다.
+- 경계: 다른 스킬이나 "스킬 없이 해도 되는 일"과 헷갈린다.
+
 ## 할 일
-1. 틀린 요청들이 왜 틀렸는지 원인 가설을 **한 가지** 고릅니다. 지난 시도가 있으면 그 결과를 근거로 삼습니다.
-2. 그 가설 하나만 반영해 설명을 고칩니다. 나머지 문장은 가능한 한 그대로 둡니다.
+1. 틀린 요청마다 그 유형이 지금 설명에 이미 들어 있는지 먼저 확인합니다. 이미 들어 있는데 틀렸다면 원인은 범위가 아닙니다.
+2. 원인 종류를 **한 가지** 고르고, 근거를 들어 가설을 씁니다.
+3. 지난 시도가 있으면 그 결과를 근거로 삼습니다. 기각됐는데 고쳐진 요청이 하나도 없던 시도와 **같은 원인 종류는 다시 고르지 않습니다**.
+4. 가설에 맞게 설명을 고칩니다. 필요하면 문장 순서와 길이까지 바꿔 설명 전체를 다시 써도 됩니다.
 
 ## 지켜야 할 것
 - 틀린 요청의 문장을 그대로 베껴 넣지 않습니다. 그 요청이 속한 **유형**을 일반적인 말로 적습니다 (처음 보는 요청에도 통해야 합니다).
 - 사용자의 의도(무엇을 하려는가)를 중심으로 적고, 언제 써야 하는지와 쓰면 안 되는 경우를 분명히 합니다.
-- 한 줄, {AIM_CHARS}자 안쪽 (절대 {MAX_CHARS}자를 넘지 않음), 한국어, 줄바꿈 없음.
-- 다른 스킬의 영역을 침범하지 않습니다.
+- 한 줄, {AIM_CHARS}자 안쪽 (절대 {MAX_CHARS}자를 넘지 않음), 한국어, 줄바꿈 없음. 길다고 잘 골라지는 것이 아닙니다. 짧고 분명할수록 좋습니다.
+- 다른 스킬의 영역을 침범하지 않습니다. 맞힌 요청을 깨뜨리지 않습니다.
 
 아래 형식으로만 답합니다.
-<hypothesis>원인 가설 한두 문장</hypothesis>
+<cause>범위 | 우선순위 | 앞부분 | 경계 중 하나</cause>
+<hypothesis>원인 가설 한두 문장 (틀린 요청의 유형이 지금 설명에 있는지 포함)</hypothesis>
 <change>무엇을 바꿨는지 한 문장</change>
 <new_description>새 설명</new_description>"""
 
@@ -234,7 +254,7 @@ def propose(name, descriptions, train, rows, history, model) -> dict:
         new = tag("new_description", shorter).strip('"')
     if not new or len(new) > MAX_CHARS:
         raise RuntimeError("쓸 수 있는 수정안을 받지 못했습니다")
-    return {"hypothesis": tag("hypothesis"), "change": tag("change"), "description": new}
+    return {"cause": tag("cause"), "hypothesis": tag("hypothesis"), "change": tag("change"), "description": new}
 
 
 # ---------------------------------------------------------------- 루프
@@ -279,7 +299,7 @@ def improve(args) -> dict | None:
     for n in range(start + 1, start + args.max_tries + 1):
         descriptions = all_descriptions(real)
         idea = propose(name, descriptions, train, [r for r in base_rows if r["split"] == "train"], history, args.model)
-        print(f"\n[시도 {n}] 가설: {idea['hypothesis']}\n  변경: {idea['change']}\n  설명({len(idea['description'])}자): "
+        print(f"\n[시도 {n}] 원인 종류: {idea['cause'] or '-'}\n  가설: {idea['hypothesis']}\n  변경: {idea['change']}\n  설명({len(idea['description'])}자): "
               f"{idea['description']}", file=sys.stderr)
         if args.propose_only:
             return None
@@ -395,7 +415,8 @@ def open_pr(name: str, entry: dict) -> None:
     def git(*a):
         subprocess.run(["git", *a], cwd=REPO, check=True)
 
-    history = [json.loads(x) for x in (HERE / "history" / name / "log.jsonl").read_text(encoding="utf-8").splitlines()]
+    history = [h for x in (HERE / "history" / name / "log.jsonl").read_text(encoding="utf-8").splitlines()
+               for h in [json.loads(x)] if not h.get("invalid")]
     branch = f"improve/{name}-{datetime.now():%m%d-%H%M}"
     git("checkout", "-q", "-b", branch)
     git("add", f"plugins/{PLUGIN}/skills/{name}/SKILL.md", f"evals/history/{name}", "evals/results")
@@ -404,6 +425,63 @@ def open_pr(name: str, entry: dict) -> None:
     subprocess.run(["gh", "pr", "create", "--title", f"fix/{name} 스킬 설명 수정 (자동 개선)",
                     "--body", pr_body(name, entry, history), "--base", "main", "--head", branch], cwd=REPO, check=True)
     git("checkout", "-q", "main")
+
+
+def post_history(api: str, name: str) -> None:
+    """evals/history/<스킬>/log.jsonl 을 통째로 api 에 보낸다 (화면의 "설명 개선 시도"). 무효 표시도 같이 간다."""
+    path = HERE / "history" / name / "log.jsonl"
+    if not path.exists():
+        return
+    entries = [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines() if x.strip()]
+    req = urllib.request.Request(api.rstrip("/") + "/skills/improves",
+                                 data=json.dumps({"tries": entries}, ensure_ascii=False).encode(),
+                                 headers={"Content-Type": "application/json"})
+    try:
+        urllib.request.urlopen(req, timeout=10).read()
+        print(f"  시도 기록 {len(entries)}개를 api 로 보냄", file=sys.stderr)
+    except OSError as e:
+        print(f"  시도 기록 전송 실패: {e}", file=sys.stderr)
+
+
+def dry_run(args) -> None:
+    """모델을 한 번도 부르지 않고 실행 계획과 LLM 에 보낼 수정안 프롬프트를 보여 준다."""
+    name, full = args.skill, f"{PLUGIN}:{args.skill}"
+    cases = evalrun.load_cases(args.cases, None, None)
+    mine = [c for c in cases if c["skill"] == full]
+    if not mine:
+        sys.exit(f"테스트 요청이 없습니다: {name}")
+    train = [c for c in mine if c["split"] == "train"]
+    others = [c for c in cases if c["skill"] != full and c["split"] == "val"]
+    rows = load_rows(args.baseline)
+    done = {(r["id"], r["run"]) for r in rows}
+    missing = sum(1 for c in mine for n in range(1, args.repeat + 1) if (c["id"], n) not in done)
+    missing += sum(1 for c in others if (c["id"], 1) not in done)
+    quick = len(train)
+    full_check = len(mine) * args.repeat - len(train) + len(others)  # 빠른 검사에서 돈 개선용 1번째는 건너뛴다
+    worst = missing + args.max_tries * (quick + full_check)
+    log_path = HERE / "history" / name / "log.jsonl"
+    history = [json.loads(x) for x in log_path.read_text(encoding="utf-8").splitlines()] if log_path.exists() else []
+    ids = {c["id"] for c in train}
+    prompt = build_prompt(name, all_descriptions(REPO / "plugins" / PLUGIN), train,
+                          [r for r in rows if r["id"] in ids], history)
+    print(f"""# 실행 계획 ({name}, 모델 {args.model}, 요청마다 {args.repeat}번, 최대 {args.max_tries}번 시도)
+
+테스트 요청: 이 스킬 {len(mine)}개 (개선용 {len(train)} · 검증용 {len(mine) - len(train)}), 다른 스킬 검증용 {len(others)}개
+지난 시도: {len(history)}번 (다음은 시도 {len(history) + 1})
+
+| 단계 | 실행 수 |
+|---|---|
+| 기준 채우기 ({args.baseline.name}에 빠진 것) | {missing} |
+| 시도마다 빠른 검사 (개선용 × 1, 안 오르면 여기서 기각) | {quick} |
+| 시도마다 전체 검사 (이 스킬 × {args.repeat} + 다른 스킬 검증용 × 1) | {full_check} (+ 깨진 요청 다시 확인 2번씩) |
+| 수정안 만들기 (LLM) | 시도마다 1 |
+
+가장 적게: {missing + quick}번 (첫 시도가 빠른 검사에서 기각) · 가장 많이: 약 {worst}번
+선택 평가 1번에 입력 약 3만 토큰 → 가장 많을 때 약 {worst * 30_000 / 1_000_000:.1f}백만 토큰
+
+# 수정안 프롬프트 (시도 {len(history) + 1}에 보낼 내용, 기준 결과 기준)
+
+{prompt}""")
 
 
 def main():
@@ -417,14 +495,28 @@ def main():
     parser.add_argument("--cases", type=Path, default=HERE / "cases")
     parser.add_argument("--root", type=Path, default=Path(os.environ.get("ESPORTS_ROOT", REPO.parent)))
     parser.add_argument("--post", metavar="API", default=os.environ.get("ESPORTS_API"), help="결과를 보낼 esports-api 주소")
-    parser.add_argument("--propose-only", action="store_true", help="수정안만 받아 보고 끝낸다")
+    parser.add_argument("--propose-only", action="store_true", help="수정안만 받아 보고 끝낸다 (LLM 1번)")
+    parser.add_argument("--post-history", action="store_true", help="시도 기록만 api 로 보내고 끝낸다 (--post 필요)")
+    parser.add_argument("--dry-run", action="store_true", help="모델을 부르지 않고 실행 계획과 수정안 프롬프트만 보여 준다")
     parser.add_argument("--pr", action="store_true", help="채택되면 브랜치와 PR 을 만든다")
     args = parser.parse_args()
     args.baseline = args.baseline or HERE / "results" / f"baseline-{args.model}.jsonl"
+    if args.post_history:
+        if not args.post:
+            sys.exit("--post-history 에는 --post <api 주소> (또는 ESPORTS_API)가 필요합니다")
+        post_history(args.post, args.skill)
+        return
+    if args.dry_run:
+        dry_run(args)
+        return
     try:
         entry = improve(args)
     except LimitHit as e:
+        if args.post:
+            post_history(args.post, args.skill)
         sys.exit(f"사용 한도에 걸려 멈췄습니다: {e}\n한도가 풀린 뒤 같은 명령으로 다시 돌리면 이미 돈 실행은 건너뜁니다")
+    if args.post and not args.propose_only:
+        post_history(args.post, args.skill)
     if entry is None:
         if not args.propose_only:
             print("\n채택된 수정안이 없습니다. 시도 기록은 evals/history/ 에 남았습니다")
