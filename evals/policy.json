@@ -1,0 +1,11 @@
+{
+  "window_days": 30,
+  "min_recall": 0.9,
+  "min_precision": 0.9,
+  "min_should_runs": 6,
+  "min_success_rate": 0.8,
+  "min_calls_for_rates": 5,
+  "cost_ratio": 2.0,
+  "max_description_chars": 600,
+  "max_failed_tries": 6
+}
