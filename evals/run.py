@@ -154,9 +154,10 @@ def rejudge(rows: list[dict], cases: list[dict]) -> list[dict]:
     """실행 기록을 지금 테스트 요청의 정답으로 다시 판정한다.
 
     결과 파일에는 돌릴 때의 정답이 남아 있다. 화면에서 정답을 바꾸거나 요청을 빼면(실행기가 evals/cases 에 반영)
-    바뀐 정답으로 다시 판정하고, 뺀 요청의 실행은 버린다.
+    바뀐 정답으로 다시 판정하고, 뺀 요청의 실행은 버린다. 지금은 없는(비활성화한) 스킬을 고른 실행은 스킬 없음으로 본다.
     """
     by_id = {c["id"]: c for c in cases}
+    alive = {f"{PLUGIN_NAME}:{p.name}" for p in (REPO / "plugins" / PLUGIN_NAME / "skills").iterdir() if p.is_dir()}
     out = []
     for r in rows:
         case = by_id.get(r["id"])
@@ -165,7 +166,11 @@ def rejudge(rows: list[dict], cases: list[dict]) -> list[dict]:
         if r.get("error"):
             out.append(r)
             continue
-        out.append({**r, "kind": case["kind"], "expect": case["expect"], "verdict": judge(case["expect"], r["got"])})
+        got = r["got"]
+        if got and got.startswith(PLUGIN_NAME + ":") and got not in alive:
+            got = None  # 지금은 없는 스킬을 고른 실행은 스킬을 안 쓴 것으로 본다
+        out.append({**r, "kind": case["kind"], "expect": case["expect"], "got": got,
+                    "verdict": judge(case["expect"], got)})
     return out
 
 
