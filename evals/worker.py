@@ -27,6 +27,10 @@ import urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+ROOT = Path(os.environ.get("ESPORTS_ROOT", HERE.parent.parent))  # esports 세 레포가 있는 폴더
+REPOS = ("esports-analyzer", "esports-api", "esports-ui")
+PLUGIN = "esports-dev"
+ROUTE_HEAD = "## 스킬 먼저"
 PROGRESS = re.compile(r"^\[(\d+)/(\d+)\]")
 PLANNED = re.compile(r"중 (\d+)번 실행")
 CASE_KEYS = ("id", "skill", "kind", "split", "repo", "prompt", "expect")
@@ -38,6 +42,12 @@ def call(api: str, path: str, body: dict | None = None) -> dict:
     req = urllib.request.Request(api.rstrip("/") + path, data=json.dumps(body or {}).encode(),
                                  headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=10) as res:
+        return json.loads(res.read())
+
+
+def get(api: str, path: str) -> dict:
+    """api 에 GET 한다. 연결이 안 되면 OSError."""
+    with urllib.request.urlopen(api.rstrip("/") + path, timeout=10) as res:
         return json.loads(res.read())
 
 
@@ -82,20 +92,72 @@ def apply_change(case: dict) -> bool:
     return found or case["change"] == "remove"
 
 
+def report(api: str, job: dict, **body) -> dict | None:
+    try:
+        return call(api, f"/skills/evals/jobs/{job['id']}/progress", body)
+    except OSError:
+        return None  # api 가 잠깐 안 되면 다음에 다시 보낸다
+
+
 def run_job(api: str, job: dict) -> None:
-    """평가 요청 하나를 run.py 로 돌리고 진행 상황을 보고한다. 화면에서 중지하면 멈춘다."""
-    path = f"/skills/evals/jobs/{job['id']}/progress"
-    out = HERE / "results" / f"{job['batch']}.jsonl"
+    """화면에서 요청한 작업 하나를 종류별로 돌린다. 끝나면 고칠 방법 진단을 새로 보낸다."""
+    kind, p = job.get("kind") or "eval", job.get("params") or {}
+    print(f"작업 #{job['id']} 시작: {kind} {p or ''}")
+    error = ""
+    try:
+        if kind == "eval":
+            error = run_eval(api, job, HERE / "results" / f"{job['batch']}.jsonl", job.get("case_ids") or [], job["skills"])
+        elif kind == "apply_line":
+            add_route_line(p["repo"], p["line"])
+            out = HERE / "results" / f"recheck-{job['model']}.jsonl"
+            error = run_eval(api, job, out, job.get("case_ids") or [], [], replace=True) if job.get("case_ids") else ""
+        elif kind == "propose":
+            error = run_cmd([sys.executable, str(HERE / "improve.py"), "--skill", p["skill"].split(":")[-1], "--propose-only",
+                             "--model", job["model"], "--post", api, *baseline_arg(p)])
+        elif kind == "evaluate_try":
+            error = run_cmd([sys.executable, str(HERE / "improve.py"), "--skill", p["skill"].split(":")[-1],
+                             "--use-try", str(p["try"]), "--max-tries", "1", "--repeat", "1", "--pr", "--model", job["model"],
+                             "--post", api, *baseline_arg(p)])
+        elif kind == "commit_line":
+            repo = ROOT / p["repo"]
+            name = p["skill"].split(":")[-1]
+            error = run_cmd(["git", "-C", str(repo), "add", "CLAUDE.md"]) or run_cmd(
+                ["git", "-C", str(repo), "commit", "-q", "-m", f"docs/CLAUDE.md 에 {name} 스킬 안내 추가"])
+        else:
+            error = f"모르는 작업 종류: {kind}"
+    except (OSError, ValueError, KeyError) as e:
+        error = str(e)
+    if kind != "eval":  # eval 은 run_eval 안에서 끝을 알린다
+        report(api, job, done=1, total=1, status="failed" if error else "done", error=error)
+    print(f"작업 #{job['id']} 끝" + (f": {error}" if error else ""))
+    post_fixes(api)
+
+
+def baseline_arg(p: dict) -> list[str]:
+    """화면에서 보던 결과 이름을 improve.py 의 기준 결과로 쓴다."""
+    path = HERE / "results" / f"{p['baseline']}.jsonl" if p.get("baseline") else None
+    return ["--baseline", str(path)] if path and path.exists() else []
+
+
+def run_cmd(cmd: list[str]) -> str:
+    """명령을 돌리고 실패하면 이유(마지막 줄)를 돌려준다."""
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    if res.returncode:
+        tail = (res.stderr or res.stdout).strip().splitlines()
+        return tail[-1][:300] if tail else f"실패 (종료 코드 {res.returncode})"
+    return ""
+
+
+def run_eval(api: str, job: dict, out: Path, case_ids: list[str], skills: list[str], replace: bool = False) -> str:
+    """run.py 로 평가하고 진행 상황을 보고한다. 화면에서 중지하면 멈춘다. 오류 메시지를 돌려준다 (없으면 빈칸)."""
     cmd = [sys.executable, str(HERE / "run.py"), "--resume", str(out), "--repeat", str(job["repeat"]),
-           "--model", job["model"], "--post", api]
-    if job.get("case_ids"):  # 요청을 골랐으면 그것만. 다른 스킬 파일의 요청(정답이 이 스킬)도 있어서 --skill 은 안 준다
-        for case_id in job["case_ids"]:
+           "--model", job["model"], "--post", api] + (["--replace"] if replace else [])
+    if case_ids:  # 요청을 골랐으면 그것만. 다른 스킬 파일의 요청(정답이 이 스킬)도 있어서 --skill 은 안 준다
+        for case_id in case_ids:
             cmd += ["--case", case_id]
     else:
-        for skill in job["skills"]:
+        for skill in skills:
             cmd += ["--skill", skill]
-    print(f"평가 #{job['id']} 시작: {job['batch']} · {', '.join(job['skills']) or '전체'}"
-          f"{' · 요청 ' + str(len(job['case_ids'])) + '개' if job.get('case_ids') else ''} · {job['repeat']}번씩 · {job['model']}")
     proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
     done = total = 0
     error = ""
@@ -110,22 +172,108 @@ def run_job(api: str, job: dict) -> None:
             error = line
         else:
             continue
-        try:
-            state = call(api, path, {"done": done, "total": total})
-        except OSError:
-            continue  # api 가 잠깐 안 되면 다음 줄에서 다시 보낸다
-        if state["status"] != "running":  # 화면에서 중지함
+        state = report(api, job, done=done, total=total)
+        if state and state["status"] != "running":  # 화면에서 중지함
             proc.terminate()
-            print(f"평가 #{job['id']} 중지됨")
+            print(f"작업 #{job['id']} 중지됨")
             break
     code = proc.wait()
     if code and not error:
         error = f"run.py 가 실패했습니다 (종료 코드 {code})"
+    report(api, job, done=done, total=total, status="failed" if error else "done", error=error)
+    return error
+
+
+# ---------------------------------------------------------------- 고칠 방법 진단
+
+def read_routes() -> dict[str, dict]:
+    """레포마다 CLAUDE.md "스킬 먼저" 목록: 그 줄들과 안내가 있는 스킬, 커밋 안 한 변경이 있는지."""
+    out = {}
+    for repo in REPOS:
+        path = ROOT / repo / "CLAUDE.md"
+        lines, inside = [], False
+        if path.exists():
+            for line in path.read_text(encoding="utf-8").splitlines():
+                if line.startswith("## "):
+                    inside = line.startswith(ROUTE_HEAD)
+                elif inside and line.startswith("- "):
+                    lines.append(line)
+        has = {m for line in lines for m in re.findall(rf"{PLUGIN}:[\w-]+", line)}
+        dirty = bool(run_out(["git", "-C", str(ROOT / repo), "status", "--porcelain", "CLAUDE.md"]))
+        out[repo] = {"lines": lines, "has": has, "dirty": dirty}
+    return out
+
+
+def run_out(cmd: list[str]) -> str:
     try:
-        call(api, path, {"done": done, "total": total, "status": "failed" if error else "done", "error": error})
-    except OSError as e:
-        print(f"결과 보고 실패: {e}")
-    print(f"평가 #{job['id']} 끝: {done}/{total}" + (f" · {error}" if error else ""))
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=10).stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+
+
+def add_route_line(repo: str, line: str) -> None:
+    """레포 CLAUDE.md 의 "스킬 먼저" 목록 끝에 한 줄을 넣는다. 목록이 없으면 만든다. 이미 있으면 그대로 둔다."""
+    if repo not in REPOS or not line.startswith("- "):
+        raise ValueError("레포 이름이나 줄 모양이 맞지 않습니다")
+    path = ROOT / repo / "CLAUDE.md"
+    text = path.read_text(encoding="utf-8").splitlines()
+    if line in text:
+        return
+    head = next((i for i, x in enumerate(text) if x.startswith(ROUTE_HEAD)), None)
+    if head is None:
+        first = next((i for i, x in enumerate(text) if x.startswith("## ")), len(text))
+        text[first:first] = [f"{ROUTE_HEAD} ({PLUGIN} 플러그인)",
+                             "아래 작업은 코드를 보거나 명령을 치기 전에 해당 스킬을 먼저 부른다.", line, ""]
+    else:
+        end = head + 1
+        while end < len(text) and not text[end].startswith("## "):
+            end += 1
+        last = max((i for i in range(head + 1, end) if text[i].startswith("- ")), default=head + 1)
+        text.insert(last + 1, line)
+    path.write_text("\n".join(text) + "\n", encoding="utf-8")
+    print(f"{repo}/CLAUDE.md 에 한 줄을 넣었습니다: {line}")
+
+
+def post_fixes(api: str) -> None:
+    """정답이 맞는데도 틀린 요청마다 진단(CLAUDE.md 안내 유무)과 고칠 방법을 api 로 보낸다. 모델은 부르지 않는다.
+
+    기준은 가장 최근의 다시 재기 아닌 결과. 다시 재기(recheck-*)에서 그 요청을 새로 쟀으면 그 결과도 붙인다.
+    """
+    try:
+        batches = [b["batch"] for b in get(api, "/skills")["batches"]]
+        main = next((b for b in batches if not b.startswith("recheck")), None)
+        if not main:
+            return
+        failed = get(api, f"/skills/evals?batch={main}&only=failed")["cases"]
+        recheck = {}
+        for b in (x for x in batches if x.startswith("recheck")):
+            for c in get(api, f"/skills/evals?batch={b}&only=all")["cases"]:
+                recheck.setdefault(c["id"], {"batch": b, "runs": c["runs"], "correct": c["correct"]})
+    except (OSError, urllib.error.HTTPError, KeyError):
+        return
+    routes = read_routes()
+    fixes = []
+    for c in failed:
+        skill = c["expect"] if c["miss"] else next((d["name"] for d in c["did"] if d["name"].startswith(PLUGIN)), c["expect"])
+        if not skill:
+            continue  # 쓰면 안 되는 요청에서 다른 스킬을 고른 경우는 정답부터 본다
+        repo = c["repo"]
+        r = routes.get(repo, {"lines": [], "has": set(), "dirty": False})
+        others = [x for x in REPOS if x != repo and skill in routes[x]["has"]]
+        line = next((ln for x in others for ln in routes[x]["lines"] if skill in ln), None) or \
+            f"- {skill.split(':')[-1]} 작업 → `{skill}`"
+        has_line = skill in r["has"]
+        fixes.append({
+            "case_id": c["id"], "skill": skill, "repo": repo, "verdict": "miss" if c["miss"] else "wrong",
+            "batch": main, "has_line": has_line, "others": others, "line": line,
+            "applied_uncommitted": has_line and r["dirty"],  # 화면에서 적용했고 아직 커밋 안 함
+            "advice": "description" if has_line else "claudemd",
+            "recheck": recheck.get(c["id"]),
+        })
+    try:
+        call(api, "/skills/fixes", {"fixes": fixes})
+    except OSError:
+        pass
 
 
 def main():
@@ -137,7 +285,8 @@ def main():
     args = parser.parse_args()
     if args.sync:
         sync_cases(args.api)
-        print("테스트 요청을 맞췄습니다")
+        post_fixes(args.api)
+        print("테스트 요청을 맞추고 고칠 방법 진단을 보냈습니다")
         return
     print(f"실행기 시작: {args.api} (끄려면 Ctrl+C)")
     warned, tick, paused = False, 0, False
@@ -145,6 +294,7 @@ def main():
         try:
             if tick % SYNC_EVERY == 0:
                 sync_cases(args.api)
+                post_fixes(args.api)
             claimed = call(args.api, "/skills/evals/jobs/claim")
             job = claimed["job"]
             if claimed.get("enabled") is False and not paused:

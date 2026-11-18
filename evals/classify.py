@@ -95,8 +95,8 @@ def failed_tries(name: str) -> int:
     """마지막 채택 뒤로 기각된 개선 시도 수."""
     count = 0
     for entry in load_jsonl(HERE / "history" / name / "log.jsonl"):
-        if entry.get("invalid"):
-            continue  # 평가 환경이 달랐던 시도는 세지 않는다
+        if entry.get("invalid") or entry.get("proposed"):
+            continue  # 평가 환경이 달랐던 시도, 평가 전 수정안은 세지 않는다
         count = 0 if entry.get("accepted") else count + 1
     return count
 

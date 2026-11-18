@@ -168,8 +168,8 @@ def build_prompt(name: str, descriptions: dict[str, str], train: list[dict], row
     others = "\n".join(f"- {PLUGIN}:{k}: {v}" for k, v in descriptions.items() if k != name)
     tries = ""
     for h in history:
-        if h.get("invalid"):
-            continue  # 평가 환경이 달랐던 시도는 근거로 쓰지 않는다
+        if h.get("invalid") or h.get("proposed"):
+            continue  # 평가 환경이 달랐던 시도, 평가 전 수정안은 근거로 쓰지 않는다
         fixed = [x["prompt"] for x in h.get("ledger", []) if x["status"] == "fixed" and x["split"] == "train"]
         broken = [x["prompt"] for x in h.get("ledger", []) if x["status"] == "broken" and x["split"] == "train"]
         cause = f' · 원인 종류 {h["cause"]}' if h.get("cause") else ""
@@ -298,13 +298,25 @@ def improve(args) -> dict | None:
     start = len(history)
     for n in range(start + 1, start + args.max_tries + 1):
         descriptions = all_descriptions(real)
-        idea = propose(name, descriptions, train, [r for r in base_rows if r["split"] == "train"], history, args.model)
+        if args.use_try:  # 화면에서 받아 둔 수정안을 그대로 평가한다 (LLM 을 다시 부르지 않음)
+            saved = next((h for h in history if h.get("try") == args.use_try), None)
+            if not saved:
+                sys.exit(f"시도 {args.use_try} 이 기록에 없습니다")
+            idea = {k: saved.get(k, "") for k in ("cause", "hypothesis", "change", "description")}
+        else:
+            idea = propose(name, descriptions, train, [r for r in base_rows if r["split"] == "train"], history, args.model)
         print(f"\n[시도 {n}] 원인 종류: {idea['cause'] or '-'}\n  가설: {idea['hypothesis']}\n  변경: {idea['change']}\n  설명({len(idea['description'])}자): "
               f"{idea['description']}", file=sys.stderr)
-        if args.propose_only:
+        if args.propose_only:  # 수정안만 기록해 둔다 (화면의 "고칠 방법"에서 보고 평가할지 정함)
+            entry = {"try": n, "at": datetime.now().isoformat(timespec="seconds"), "skill": full, "model": args.model,
+                     "before_description": descriptions[name], **idea, "accepted": False, "proposed": True,
+                     "reason": f"수정안 (평가 전, 기준 {args.baseline.name})"}
+            with log_path.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
             return None
         entry = {"try": n, "at": datetime.now().isoformat(timespec="seconds"), "skill": full, "model": args.model,
-                 "before_description": descriptions[name], **idea, "accepted": False}
+                 "before_description": descriptions[name], **idea, "accepted": False,
+                 **({"from_try": args.use_try} if args.use_try else {})}
         with tempfile.TemporaryDirectory() as tmp:
             candidate = Path(tmp) / PLUGIN
             shutil.copytree(real, candidate)
@@ -416,7 +428,7 @@ def open_pr(name: str, entry: dict) -> None:
         subprocess.run(["git", *a], cwd=REPO, check=True)
 
     history = [h for x in (HERE / "history" / name / "log.jsonl").read_text(encoding="utf-8").splitlines()
-               for h in [json.loads(x)] if not h.get("invalid")]
+               for h in [json.loads(x)] if not h.get("invalid") and not h.get("proposed")]
     branch = f"improve/{name}-{datetime.now():%m%d-%H%M}"
     git("checkout", "-q", "-b", branch)
     git("add", f"plugins/{PLUGIN}/skills/{name}/SKILL.md", f"evals/history/{name}", "evals/results")
@@ -496,6 +508,7 @@ def main():
     parser.add_argument("--root", type=Path, default=Path(os.environ.get("ESPORTS_ROOT", REPO.parent)))
     parser.add_argument("--post", metavar="API", default=os.environ.get("ESPORTS_API"), help="결과를 보낼 esports-api 주소")
     parser.add_argument("--propose-only", action="store_true", help="수정안만 받아 보고 끝낸다 (LLM 1번)")
+    parser.add_argument("--use-try", type=int, help="기록에 있는 이 시도의 수정안을 그대로 평가한다 (화면에서 받아 둔 수정안)")
     parser.add_argument("--post-history", action="store_true", help="시도 기록만 api 로 보내고 끝낸다 (--post 필요)")
     parser.add_argument("--dry-run", action="store_true", help="모델을 부르지 않고 실행 계획과 수정안 프롬프트만 보여 준다")
     parser.add_argument("--pr", action="store_true", help="채택되면 브랜치와 PR 을 만든다")
@@ -515,7 +528,7 @@ def main():
         if args.post:
             post_history(args.post, args.skill)
         sys.exit(f"사용 한도에 걸려 멈췄습니다: {e}\n한도가 풀린 뒤 같은 명령으로 다시 돌리면 이미 돈 실행은 건너뜁니다")
-    if args.post and not args.propose_only:
+    if args.post:  # 수정안만 받은 경우도 화면에 보낸다
         post_history(args.post, args.skill)
     if entry is None:
         if not args.propose_only:

@@ -238,6 +238,8 @@ def main():
     parser.add_argument("--post", metavar="API", default=os.environ.get("ESPORTS_API"),
                         help="esports-api 주소 (예: http://localhost:8002). 주면 실행 기록을 보낸다")
     parser.add_argument("--resume", type=Path, help="이 결과 파일에서 실패했거나 안 돈 실행만 이어서 돌린다")
+    parser.add_argument("--replace", action="store_true",
+                        help="--resume 파일에서 이번에 돌릴 요청의 옛 실행을 지우고 새로 잰다 (고친 뒤 다시 재기)")
     args = parser.parse_args()
 
     if args.report:
@@ -267,6 +269,9 @@ def main():
     if args.resume and out.exists():  # 성공한 실행만 남기고, 실패한 줄은 지운 뒤 이어서 쓴다
         rows = [r for x in out.read_text(encoding="utf-8").splitlines() if x.strip()
                 for r in [json.loads(x)] if not r.get("error")]
+        if args.replace:
+            ids = {c["id"] for c in cases}
+            rows = [r for r in rows if r["id"] not in ids]
         out.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
     done = {(r["id"], r["run"]) for r in rows}
     jobs = [(case, n) for n in range(1, args.repeat + 1) for case in cases if (case["id"], n) not in done]
