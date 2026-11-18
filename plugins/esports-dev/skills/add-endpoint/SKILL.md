@@ -1,6 +1,6 @@
 ---
 name: add-endpoint
-description: esports 레포에 HTTP 엔드포인트를 새로 만들거나 요청 · 응답 모양을 바꿀 때 같이 고쳐야 하는 곳을 순서대로 처리한다 — 스펙 확인, esports-api 의 api/<엔드포인트>/ 폴더 · urls · tests, esports-ui 의 web/api_client.py · 화면, analyzer 의 api/<엔드포인트>/schemas.py 와 api 쪽 analyzer.py. "엔드포인트 추가해 줘", "/cases API 만들어 줘", "응답에 필드 하나 더 넣어 줘", "analyzer /jobs 요청 모양 바꿔" 처럼 레포 사이 연동 스펙이 바뀌는 작업에 사용한다. 화면만 고치는 작업이나 파이프라인 단계 추가(add-stage)에는 쓰지 않는다.
+description: esports 레포에 HTTP 엔드포인트를 새로 만들거나 요청 · 응답 모양을 바꿀 때 같이 고쳐야 하는 곳을 순서대로 처리한다 — 스펙 확인, esports-api 의 api/<엔드포인트>/ 폴더 · urls · tests, esports-ui 의 web/api_client.py · 화면, analyzer 의 api/<엔드포인트>/schemas.py 와 api 쪽 analyzer.py. "엔드포인트 추가해 줘", "/cases API 만들어 줘", "응답에 필드 하나 더 넣어 줘", "analyzer /jobs 요청 모양 바꿔" 처럼 레포 사이 연동 스펙이 바뀌는 작업에 사용한다. 화면만 고치는 작업이나 파이프라인 단계 추가에는 쓰지 않는다.
 ---
 
 # add-endpoint — 엔드포인트 추가 · 변경
@@ -29,7 +29,7 @@ description: esports 레포에 HTTP 엔드포인트를 새로 만들거나 요�
 4. **ui (`esports-ui`).** 호출 함수는 `web/api_client.py`에만 추가한다 (docstring 에 `GET /경로`). 뷰는 `web/views.py`, 템플릿은 `web/templates/web/`. ui 에 목업 JSON 을 두지 않는다.
 5. **analyzer 스펙이 바뀌는 경우.** `esports-analyzer/api/<엔드포인트>/schemas.py`(요청 · 응답 모양)와 `views.py`를 고치고, 새 엔드포인트면 `app/main.py`에 router 를 추가한다. 그리고 **같은 작업에서** `esports-api/api/games/analyzer.py`의 호출과 PLAN 6장을 맞춘다.
 6. **직접 불러 보기.** `curl -s localhost:8002/<경로>` 와 화면에서 확인한다 (안 떠 있으면 local-up).
-7. **문서.** README · `CLAUDE.md` · PLAN 6장 반영은 docs-sync 로 한다. 스펙 시트 갱신은 사용자와 정한 사람이 한다.
+7. **문서.** README · `CLAUDE.md` · PLAN 6장도 바뀐 내용에 맞춰 같이 고친다. 스펙 시트 갱신은 사용자와 정한 사람이 한다.
 
 ## 알아 둘 것
 

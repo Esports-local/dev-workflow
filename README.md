@@ -15,13 +15,7 @@ claude plugin install esports-dev@esports
 |---|---|
 | `local-up` | ui · api · analyzer · MinIO 를 한 번에 띄우고 끄기 |
 | `import-game` | op.gg 경기 정보와 analyzer 결과 폴더를 api DB 에 등록 |
-| `pipeline-run` | 분석 단계를 골라 실행 · 중간부터 재실행 |
-| `translate-run` | 번역 조건 선택 → 예상 토큰 → 실행 |
-| `roi-config` | 중계 화면 OCR 영역 설정 추가 · 수정 |
 | `add-endpoint` | 엔드포인트 추가 · 변경 때 api · ui · analyzer 를 같이 고치기 |
-| `add-stage` | 파이프라인 단계 추가 |
-| `docs-sync` | 구현 뒤 README · CLAUDE.md · PLAN 맞추기 |
-| `job-debug` | 분석 작업 실패 · 멈춤 원인 찾기 |
 
 커밋 규칙처럼 항상 적용되는 내용은 스킬이 아니라 각 레포 `CLAUDE.md`에 둔다.
 
@@ -49,7 +43,7 @@ evals/results/<묶음>.jsonl   # 평가 실행 기록
 ## 선택 평가
 
 ```
-python3 evals/run.py                      # 전체 108개 × 2번, sonnet
+python3 evals/run.py                      # 전체 36개 × 2번, sonnet
 python3 evals/run.py --split val --repeat 3
 python3 evals/run.py --report evals/results/<파일>.jsonl
 ```

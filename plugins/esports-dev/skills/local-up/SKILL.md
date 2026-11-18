@@ -1,6 +1,6 @@
 ---
 name: local-up
-description: esports 세 레포(esports-ui · esports-api · esports-analyzer)와 MinIO 를 docker compose 로 한 번에 띄우고 /health 로 확인한다. 끄기 · 다시 띄우기 · 로그 보기 · 상태 확인도 여기서 한다. esports 레포에서 "로컬에서 띄워 줘", "서버 켜 줘", "api 띄워 줘", "화면 확인하게 올려 줘", "다 꺼 줘", "analyzer 로그 보여 줘" 처럼 로컬 개발 서버를 올리거나 내릴 때 사용한다. 분석 작업이 실패 · 멈춘 원인을 찾는 것은 job-debug.
+description: esports 세 레포(esports-ui · esports-api · esports-analyzer)와 MinIO 를 docker compose 로 한 번에 띄우고 /health 로 확인한다. 끄기 · 다시 띄우기 · 로그 보기 · 상태 확인도 여기서 한다. esports 레포에서 "로컬에서 띄워 줘", "서버 켜 줘", "api 띄워 줘", "화면 확인하게 올려 줘", "다 꺼 줘", "analyzer 로그 보여 줘" 처럼 로컬 개발 서버를 올리거나 내릴 때 사용한다. 분석 작업이 실패 · 멈춘 원인을 찾는 데는 쓰지 않는다.
 ---
 
 # local-up — ui · api · analyzer · MinIO 한 번에 띄우기
