@@ -2,3 +2,5 @@
 __pycache__/
 *.py[cod]
 .env
+evals/.worker.pid
+evals/worker.log

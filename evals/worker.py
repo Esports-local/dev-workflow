@@ -1,6 +1,7 @@
 """화면(esports-ui /skills/)에서 요청한 선택 평가를 맥에서 돌리는 실행기.
 
-api 는 Docker 안에 있어서 `claude` 를 실행할 수 없다. 이 실행기가 맥에서 api 에 대기 중인 평가 요청을 물어보고,
+api 는 Docker 안에 있어서 `claude` 를 실행할 수 없다 (로그인과 레포가 맥에 있다).
+dev.sh up 이 이 실행기를 백그라운드로 같이 켜고 down 이 끈다. 화면에서 "평가 실행 허용"을 켜야 요청을 가져간다. 이 실행기가 맥에서 api 에 대기 중인 평가 요청을 물어보고,
 있으면 run.py 를 돌려 진행 상황과 결과를 api 로 보낸다. 한 번에 하나만 돈다.
 
     python3 evals/worker.py                              # http://localhost:8002 에 5초마다 물어봄
@@ -139,12 +140,16 @@ def main():
         print("테스트 요청을 맞췄습니다")
         return
     print(f"실행기 시작: {args.api} (끄려면 Ctrl+C)")
-    warned, tick = False, 0
+    warned, tick, paused = False, 0, False
     while True:
         try:
             if tick % SYNC_EVERY == 0:
                 sync_cases(args.api)
-            job = call(args.api, "/skills/evals/jobs/claim")["job"]
+            claimed = call(args.api, "/skills/evals/jobs/claim")
+            job = claimed["job"]
+            if claimed.get("enabled") is False and not paused:
+                print("화면에서 '평가 실행 허용'이 꺼져 있어 요청을 가져가지 않고 기다립니다")
+            paused = claimed.get("enabled") is False
             if job:
                 sync_cases(args.api)  # 방금 추가한 요청까지 넣고 돌린다
             warned = False

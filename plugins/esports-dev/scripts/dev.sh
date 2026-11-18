@@ -5,8 +5,11 @@
 #   dev.sh up        빌드 후 백그라운드로 전부 띄움 (기본값)
 #   dev.sh down      전부 끔 (데이터 볼륨은 유지)
 #   dev.sh restart   다시 띄움
-#   dev.sh logs [서비스]   로그 따라보기 (예: dev.sh logs analyzer)
+#   dev.sh logs [서비스]   로그 따라보기 (예: dev.sh logs analyzer, 평가 실행기는 dev.sh logs worker)
 #   dev.sh ps        상태 확인
+#
+# up 은 맥에서 평가 실행기(dev-workflow/evals/worker.py)도 백그라운드로 켠다. 실행기는 /skills/ 화면에서
+# "평가 실행 허용"을 켜야 평가를 가져간다 (claude 구독 한도를 쓰므로 기본은 꺼짐). dev-workflow 가 없으면 건너뛴다
 set -euo pipefail
 
 # 세 레포가 나란히 있는 폴더를 찾는다: ESPORTS_ROOT → 지금 폴더 → 지금 폴더의 위 (레포 안에서 부른 경우)
@@ -55,6 +58,29 @@ fi
 
 compose() { (cd "$API_DIR" && docker compose "$@"); }
 
+WORKER="$ROOT/dev-workflow/evals/worker.py"
+WORKER_PID="$ROOT/dev-workflow/evals/.worker.pid"
+WORKER_LOG="$ROOT/dev-workflow/evals/worker.log"
+
+worker_running() { [ -f "$WORKER_PID" ] && kill -0 "$(cat "$WORKER_PID")" 2>/dev/null; }
+
+start_worker() {
+  [ -f "$WORKER" ] || { echo "  worker    건너뜀 (dev-workflow 폴더 없음)"; return; }
+  if worker_running; then echo "  worker    이미 실행 중 (pid $(cat "$WORKER_PID"))"; return; fi
+  nohup python3 -u "$WORKER" --api http://localhost:8002 >> "$WORKER_LOG" 2>&1 &
+  echo $! > "$WORKER_PID"
+  echo "  worker    켜짐 (pid $!) · 평가는 화면에서 '평가 실행 허용'을 켜야 돈다"
+}
+
+stop_worker() {
+  if worker_running; then
+    pkill -TERM -P "$(cat "$WORKER_PID")" 2>/dev/null || true  # 돌던 run.py 도 같이 끈다
+    kill "$(cat "$WORKER_PID")" 2>/dev/null || true
+    echo "평가 실행기를 껐습니다"
+  fi
+  rm -f "$WORKER_PID"
+}
+
 wait_for() {  # 이름 주소
   local name=$1 url=$2
   printf "  %-9s " "$name"
@@ -71,6 +97,7 @@ up() {
   wait_for analyzer http://localhost:8001/health
   wait_for api      http://localhost:8002/health
   wait_for ui       http://localhost:8000/
+  start_worker
   echo
   echo "화면:     http://localhost:8000"
   echo "api 문서: http://localhost:8002/api/docs/"
@@ -82,9 +109,9 @@ cmd=${1:-up}
 shift || true
 case "$cmd" in
   up)      up ;;
-  down)    compose down ;;
-  restart) compose down && up ;;
-  logs)    compose logs -f --tail=100 "$@" ;;
+  down)    stop_worker; compose down ;;
+  restart) stop_worker; compose down && up ;;
+  logs)    if [ "${1:-}" = worker ]; then tail -n 100 -f "$WORKER_LOG"; else compose logs -f --tail=100 "$@"; fi ;;
   ps)      compose ps ;;
   *)       echo "사용법: dev.sh [up|down|restart|logs [서비스]|ps]"; exit 1 ;;
 esac
