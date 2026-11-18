@@ -40,6 +40,10 @@ POLICY.md                    # 분류 기준
 evals/results/<묶음>.jsonl   # 평가 실행 기록
 ```
 
+## 검사 (CI)
+
+`python3 evals/check.py`: 모델을 부르지 않고 플러그인 매니페스트, SKILL.md 머리말(name · 1,024자), 테스트 요청(필드 · id 중복 · kind 와 정답의 짝 · 정답 스킬이 있는가), policy.json, 훅 · dev.sh 를 검사한다. `.github/workflows/ci.yml`이 푸시·PR 마다 돌린다.
+
 ## 선택 평가
 
 ```
