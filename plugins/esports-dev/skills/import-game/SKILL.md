@@ -1,6 +1,6 @@
 ---
 name: import-game
-description: op.gg 경기 정보와 analyzer 분석 결과 폴더를 esports-api DB 에 넣는다 — 관리 명령 import_match(op.gg 번호 · 주소) 다음 import_outputs(결과 폴더 이름, --match · --set · --lang · --title) 순서. "이 경기 등록해 줘", "op.gg 32706 가져와", "분석 결과를 api 에 넣어 줘", "CLI 로 돌린 결과가 화면에 안 보여" 처럼 경기나 세트 영상을 DB 에 등록할 때 사용한다. 분석 자체를 돌리는 것은 pipeline-run.
+description: op.gg 경기 정보와 analyzer 분석 결과 폴더를 esports-api DB 에 넣는다 — 관리 명령 import_match(op.gg 번호 · 주소) 다음 import_outputs(결과 폴더 이름, --match · --set · --lang · --title) 순서. "이 경기 등록해 줘", "op.gg 32706 가져와", "분석 결과를 api 에 넣어 줘", "CLI 로 돌린 결과가 화면에 안 보여" 처럼 경기나 세트 영상을 DB 에 등록할 때 사용한다. 분석 자체를 돌리는 데는 쓰지 않는다.
 ---
 
 # import-game — 경기 정보와 세트 영상 등록
@@ -15,7 +15,7 @@ description: op.gg 경기 정보와 analyzer 분석 결과 폴더를 esports-api
    ```
    docker compose exec api python manage.py import_match 32706
    ```
-2. **결과 폴더 확인.** `../esports-analyzer/outputs/<이름>/work/`에 단계 결과(`preprocess.json`, `roi_ocr.json`, `asr.json` …)가 있는지 본다. 이름은 영상 파일 이름에서 확장자를 뺀 것이다. 없으면 pipeline-run 으로 먼저 분석한다.
+2. **결과 폴더 확인.** `../esports-analyzer/outputs/<이름>/work/`에 단계 결과(`preprocess.json`, `roi_ocr.json`, `asr.json` …)가 있는지 본다. 이름은 영상 파일 이름에서 확장자를 뺀 것이다. 없으면 analyzer 로 먼저 분석한다 (실행 방법은 analyzer `CLAUDE.md`).
 3. **세트 영상 등록.**
    ```
    docker compose exec api python manage.py import_outputs words_test_1080 --title "BLG vs T1 2세트 (한국어)" --lang ko --match 32706 --set 2
