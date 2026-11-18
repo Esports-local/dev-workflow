@@ -1,0 +1,22 @@
+# 푸시·PR 마다 플러그인 · 테스트 요청 검사 (모델 호출 없음, 한도를 쓰지 않는다)
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 플러그인 · 테스트 요청 검사
+        run: python3 evals/check.py
+      - name: 기준 결과 집계가 도는가
+        run: python3 evals/run.py --report evals/results/baseline-sonnet.jsonl > /dev/null
