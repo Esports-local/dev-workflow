@@ -71,6 +71,15 @@ python3 evals/worker.py        # 끄려면 Ctrl+C
 python3 evals/worker.py --sync # 평가 없이 테스트 요청만 맞춤
 ```
 
+**고칠 방법**: 정답이 맞는데도 틀린 요청마다 실행기가 레포 CLAUDE.md "스킬 먼저" 목록을 보고 진단해 화면에 보낸다 (`POST /skills/fixes`, 모델 호출 없음). 화면의 버튼은 실행기 작업이 된다.
+
+| 버튼 | 실행기가 하는 일 |
+|---|---|
+| 적용하고 틀린 요청 다시 재기 | 그 레포 CLAUDE.md "스킬 먼저" 끝에 한 줄을 넣고, 그 요청을 `results/recheck-<모델>.jsonl`로 다시 잰다 (`run.py --replace`) |
+| 커밋하기 | 넣은 줄을 그 레포에 `docs/CLAUDE.md 에 <스킬> 스킬 안내 추가`로 커밋 (푸시는 안 함) |
+| 수정안 받기 | `improve.py --propose-only`: 수정안만 기록하고 화면에 보낸다 (LLM 1번) |
+| 이 안으로 평가하기 | `improve.py --use-try N --max-tries 1 --repeat 1 --pr`: 받아 둔 수정안을 평가하고 채택되면 PR |
+
 화면에서 "틀린 요청만"을 고르면 그 요청 id 만 `run.py --case`로 돌린다. `improve.py --post <api>`는 시도 기록(`evals/history/<스킬>/log.jsonl`)도 보내 화면의 "설명 개선 시도"에 나온다 (기록만 보낼 때 `--post-history`).
 
 화면에서 추가한 테스트 요청, "틀린 요청" 표에서 바꾼 정답·뺀 요청은 실행기가 `evals/cases/*.jsonl`에 반영한다 (커밋은 사람이).
