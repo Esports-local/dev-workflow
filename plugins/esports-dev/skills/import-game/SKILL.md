@@ -28,7 +28,7 @@ description: op.gg 경기 정보와 analyzer 분석 결과 폴더를 esports-api
 ## 알아 둘 것
 
 - 사용자가 경기 번호 · 세트 · 언어를 말하지 않았으면 묻는다. 짐작해서 넣지 않는다.
-- 세트별 진영 · 선수 이름은 op.gg 페이지에 없다. `import_outputs`가 화면 OCR(roi_ocr) 결과의 팀 · 선수 이름으로 채운다. 그래서 roi_ocr 결과가 없으면 선수 칸이 빈다.
-- op.gg 는 경기 페이지 안의 JSON 만 읽는다. op.gg 내부 API 를 부르는 코드를 넣지 않는다.
+- 세트별 블루/레드 팀 · 선수 · 챔피언은 `import_match`가 op.gg 세트 정보로 채운다 (출력 끝의 "선수·챔피언 N세트"). 받지 못하면 경고만 내고 경기 정보는 저장한다. 그때는 `import_outputs`가 화면 OCR(roi_ocr)의 팀 · 선수 이름으로 빈 칸만 채운다.
+- op.gg 는 경기 페이지 안 JSON 과, 세트 정보용 `/matches/graphql`의 `GetGameByMatch` 하나만 쓴다. 그 밖의 op.gg 내부 API 를 부르는 코드는 넣지 않는다.
 - 화면의 "영상 추가"(`POST /games`)는 등록과 분석을 한 번에 한다. 이 스킬은 CLI 로 이미 만든 결과를 넣거나, 경기 정보만 먼저 넣을 때 쓴다.
 - 같은 결과 폴더를 다시 넣으면 그 영상의 분석 결과가 새로 덮인다. 대사 검수(LineReview)는 따로 저장돼 남는다.
