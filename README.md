@@ -12,6 +12,8 @@ claude plugin install esports-dev@esports --scope project
 claude plugin marketplace update esports   # dev-workflow 를 푸시한 뒤 설치본 갱신
 ```
 
+스킬·훅을 고쳐 푸시할 때는 `plugins/esports-dev/.claude-plugin/plugin.json`의 `version`도 올린다. 버전이 같으면 `claude plugin update esports-dev@esports`가 "이미 최신"으로 보고 설치본을 바꾸지 않는다.
+
 ## 스킬 (`plugins/esports-dev/skills/`)
 
 | 스킬 | 하는 일 |
