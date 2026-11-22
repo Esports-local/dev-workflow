@@ -4,9 +4,12 @@ Esports-local 조직(`esports-analyzer` · `esports-api` · `esports-ui`)의 Cla
 
 ## 설치
 
+세 레포에는 project 범위로 켜 두었다 (각 레포 `.claude/settings.json`, 레포를 열면 설치를 묻는다). 직접 설치할 때:
+
 ```
-claude plugin marketplace add Esports-local/dev-workflow
-claude plugin install esports-dev@esports
+claude plugin marketplace add Esports-local/dev-workflow --scope project
+claude plugin install esports-dev@esports --scope project
+claude plugin marketplace update esports   # dev-workflow 를 푸시한 뒤 설치본 갱신
 ```
 
 ## 스킬 (`plugins/esports-dev/skills/`)
@@ -84,6 +87,9 @@ python3 evals/worker.py --sync # 평가 없이 테스트 요청만 맞춤
 
 화면에서 추가한 테스트 요청, "틀린 요청" 표에서 바꾼 정답·뺀 요청은 실행기가 `evals/cases/*.jsonl`에 반영한다 (커밋은 사람이).
 결과 파일에는 돌릴 때의 정답이 남아 있지만 `run.py --report`, `improve.py`, `classify.py`는 지금 테스트 요청의 정답으로 다시 판정하고, 뺀 요청은 버린다.
+
+- `improve.py`의 빠른 검사는 두 단계다: 기준에서 틀렸던 개선용 요청만 먼저 1번 돌려 하나도 안 고쳐지면 바로 기각하고, 고쳐진 것이 있을 때만 나머지 개선용 · 전체 검사로 간다. 한도로 멈춰 로그에 없는 시도의 평가 기록(`try<N>.jsonl`)은 다음 실행 때 `try<N>-stopped-*.jsonl`로 옮기고 쓰지 않는다
+- 세 레포에는 플러그인이 project 범위로 설치돼 있지만, 평가는 `--plugin-dir` 평가본이 같은 이름의 설치본을 대신한다. `run.py`는 실행마다 시작 정보(init)에서 올라온 `esports-dev`가 평가본 한 벌인지 보고, 아니면 평가 전체를 멈춘다
 
 ## 사용 기록
 
