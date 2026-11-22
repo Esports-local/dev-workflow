@@ -1,11 +1,13 @@
 """스킬 설명(description) 자동 개선.
 
 스킬 하나에 대해: 개선용 실패 요청을 LLM 에 보여 주고 원인 가설 + 수정안을 받는다 → 플러그인 복사본에 적용해
-다시 평가한다 → 요청별로 고쳐짐/새로 깨짐을 적는다 → 검증용 점수가 오르고 다른 스킬이 깨지지 않으면 채택한다.
+다시 평가한다 → 요청별로 고쳐짐/새로 깨짐을 적는다 → 틀렸던 요청이 고쳐지고 쓰면 안 되는 요청이 그대로면 채택한다.
 기각되면 그 결과를 다음 시도에 알려 주고 다시 한다.
 
-빠른 검사는 두 단계다: 기준에서 틀렸던 개선용 요청만 먼저 1번씩 돌려 하나도 안 고쳐지면 바로 기각하고
-(대부분의 기각이 여기서 끝나 한도를 아낀다), 고쳐진 것이 있으면 나머지 개선용을 돌려 전체가 올랐는지 본다.
+시도마다 평가는 두 단계만 돈다 (한도를 아끼려고 전체 회귀는 루프 밖으로 뺐다):
+1. 기준에서 틀렸던 요청만 1번 → 하나도 안 고쳐지면 기각 (대부분 여기서 1~2번 만에 끝난다)
+2. 이 스킬의 "쓰면 안 되는" 요청 1번 → 스킬을 고르면 기각 (누락을 고치려 설명을 넓히면 깨지는 쪽)
+채택된 수정안 하나만 PR 머지 전에 전체 회귀(이 스킬 전체 + 다른 스킬 검증용)를 run.py 로 한 번 돌린다.
 
     python3 evals/improve.py --skill add-endpoint                # 최대 3번 시도, 채택되면 SKILL.md 를 고친다
     python3 evals/improve.py --skill add-endpoint --pr           # 채택되면 브랜치·PR 까지 만든다
@@ -179,7 +181,8 @@ def build_prompt(name: str, descriptions: dict[str, str], train: list[dict], row
         tries += (f'\n### 시도 {h["try"]} ({"채택" if h["accepted"] else "기각"}: {h["reason"]}{cause})\n'
                   f'가설: {h["hypothesis"]}\n설명: {h["description"]}\n'
                   f'개선용에서 고쳐진 요청: {fixed or "없음"}\n개선용에서 새로 깨진 요청: {broken or "없음"}\n'
-                  f'검증용에서 새로 깨진 요청 수: {h.get("val_broken", 0)}, 다른 스킬에서 새로 깨진 요청 수: {h.get("others_broken", 0)}\n')
+                  f'검증용에서 새로 깨진 요청 수: {sum(1 for x in h.get("ledger", []) if x["status"] == "broken" and x["split"] == "val") or h.get("val_broken", 0)}, '
+                  f'다른 스킬에서 새로 깨진 요청 수: {h.get("others_broken", 0)}\n')
     return f"""Claude Code 스킬 "{PLUGIN}:{name}"의 설명(description)을 고치려고 합니다.
 
 Claude 는 사용자의 요청을 받으면 스킬 목록의 이름과 설명만 보고 스킬을 쓸지 정합니다. 스킬 본문은 고른 뒤에야 읽습니다.
@@ -330,48 +333,28 @@ def improve(args) -> dict | None:
                 try_path.rename(stopped)
                 print(f"  멈춘 시도의 옛 평가 기록을 {stopped.name} 로 옮김", file=sys.stderr)
 
-            # 빠른 확인 1단계: 기준에서 틀렸던 개선용 요청만. 하나도 안 고쳐지면 나머지는 돌리지 않는다
-            failing = [c for c in train if base.get(c["id"], 1.0) < 1.0]
+            # 1단계: 기준에서 틀렸던 요청(개선용·검증용)만 1번. 하나도 안 고쳐지면 기각
+            failing = [c for c in mine if base.get(c["id"], 1.0) < 1.0]
             first = rates(ensure_runs(failing, 1, try_path, candidate, args))
-            fixed_first = [c for c in failing if first.get(c["id"], 0.0) > base[c["id"]]]
-            entry["train_before"] = score(base, train)
-            if failing and not fixed_first:
-                entry.update(train_quick=None, ledger=ledger(base, first, failing),
-                             reason=f"틀렸던 개선용 요청 {len(failing)}개가 하나도 안 고쳐짐 (나머지 개선용은 안 돌림)")
-                quick = None
-            else:  # 2단계: 나머지 개선용 1번 (1단계에서 돈 것은 건너뜀)
-                quick = rates(ensure_runs(train, 1, try_path, candidate, args))
-                entry["train_quick"] = score(quick, train)
-            if quick is None:
-                pass
-            elif entry["train_quick"] <= entry["train_before"]:
-                entry.update(reason=f"개선용이 안 오름 ({pct(entry['train_before'])} → {pct(entry['train_quick'])})",
-                             ledger=ledger(base, quick, train))
+            fixed = [c for c in failing if first.get(c["id"], 0.0) > base[c["id"]]]
+            entry.update(train_before=score(base, train), failing=len(failing), fixed_count=len(fixed))
+            if not fixed:
+                entry.update(ledger=ledger(base, first, failing), reason=f"틀렸던 요청 {len(failing)}개가 하나도 안 고쳐짐")
             else:
-                after = rates(ensure_runs(mine, args.repeat, try_path, candidate, args))
-                after_o = rates(ensure_runs(others, 1, try_path, candidate, args))
-                broken = [x for x in ledger(base_o, after_o, others) if x["status"] == "broken"]
-                if broken:  # 한 번 틀린 것은 흔들림일 수 있어 한 번 더 돌려 둘 다 틀릴 때만 깨진 것으로 본다
-                    again = [c for c in others if c["id"] in {x["id"] for x in broken}]
-                    after_o.update(rates(ensure_runs(again, 2, try_path, candidate, args)))
-                    broken = [x for x in ledger(base_o, after_o, again) if x["after"] == 0]
-                entry.update(
-                    ledger=ledger(base, after, mine), others_broken=len(broken),
-                    others_broken_cases=[{"id": x["id"], "prompt": x["prompt"]} for x in broken],
-                    train_after=score(after, train), val_before=score(base, val), val_after=score(after, val),
-                    others_before=score(base_o, others), others_after=score(after_o, others))
-                entry["val_broken"] = sum(1 for x in entry["ledger"] if x["status"] == "broken" and x["split"] == "val")
-                val_up = entry["val_after"] > entry["val_before"] or (entry["val_before"] == entry["val_after"] == 1.0)
-                if broken:
-                    entry["reason"] = f"다른 스킬의 요청 {len(broken)}개가 새로 깨짐"
-                elif not val_up:
-                    entry["reason"] = f"검증용이 안 오름 ({pct(entry['val_before'])} → {pct(entry['val_after'])})"
-                elif entry["train_after"] <= entry["train_before"]:
-                    entry["reason"] = "개선용이 다시 재 보니 안 오름"
+                # 2단계: 이 스킬의 "쓰면 안 되는" 요청 1번. 누락을 고치려고 설명을 넓히면 깨지는 쪽이 여기다
+                guards = [c for c in mine if c["kind"] == "should_not"]
+                after = rates(ensure_runs(guards, 1, try_path, candidate, args))
+                wrong = [c for c in guards if after.get(c["id"], 1.0) < 1.0]
+                if wrong:  # 한 번 틀린 것은 흔들림일 수 있어 한 번 더 돌려 두 번 다 틀릴 때만 깨진 것으로 본다
+                    after.update(rates(ensure_runs(wrong, 2, try_path, candidate, args)))
+                    wrong = [c for c in wrong if after[c["id"]] == 0.0]
+                entry.update(ledger=ledger(base, {**after, **first}, failing + guards), guards=len(guards),
+                             guards_broken=len(wrong), guards_broken_cases=[{"id": c["id"], "prompt": c["prompt"]} for c in wrong])
+                if wrong:
+                    entry["reason"] = f"쓰면 안 되는 요청 {len(wrong)}개에서 스킬을 고름 (설명이 너무 넓어짐)"
                 else:
-                    entry.update(accepted=True, reason=f"개선용 {pct(entry['train_before'])} → {pct(entry['train_after'])}, "
-                                                       f"검증용 {pct(entry['val_before'])} → {pct(entry['val_after'])}, "
-                                                       f"다른 스킬 깨짐 없음")
+                    entry.update(accepted=True, reason=f"틀렸던 요청 {len(failing)}개 중 {len(fixed)}개 고쳐짐, 쓰면 안 되는 요청 "
+                                                       f"{len(guards)}개 그대로 (전체 회귀는 PR 머지 전에 한 번)")
         history.append(entry)
         with log_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
@@ -404,17 +387,20 @@ def pr_body(name: str, entry: dict, history: list[dict]) -> str:
                      for x in entry["ledger"])
     tries = "\n".join(f'{h["try"]}. **{"채택" if h["accepted"] else "기각"}** — {h["reason"]}\n'
                       f'   - 가설: {h["hypothesis"]}\n   - 변경: {h["change"]}' for h in history)
-    return f"""`{PLUGIN}:{name}` 스킬 설명을 고칩니다. `evals/improve.py` 가 개선용 실패 요청을 분석해 만든 수정안이고, 검증용 요청으로 전후를 비교했습니다.
+    return f"""`{PLUGIN}:{name}` 스킬 설명을 고칩니다. `evals/improve.py` 가 개선용 실패 요청을 분석해 만든 수정안입니다.
 
-## 전후 비교 ({entry["model"]})
+## 루프 안에서 확인한 것 ({entry["model"]})
 
-| | 수정 전 | 수정 후 |
-|---|---|---|
-| 개선용 정확도 | {pct(entry["train_before"])} | {pct(entry["train_after"])} |
-| 검증용 정확도 | {pct(entry["val_before"])} | {pct(entry["val_after"])} |
-| 다른 스킬 검증용 정확도 | {pct(entry["others_before"])} | {pct(entry["others_after"])} |
+| | 결과 |
+|---|---|
+| 기준에서 틀렸던 요청 | {entry.get("failing", 0)}개 중 {entry.get("fixed_count", 0)}개 고쳐짐 |
+| 이 스킬의 "쓰면 안 되는" 요청 | {entry.get("guards", 0)}개 중 새로 스킬을 고른 것 {entry.get("guards_broken", 0)}개 |
 
-다른 스킬에서 새로 깨진 요청: {entry["others_broken"]}개
+**머지 전에 전체 회귀를 한 번 돌려 주세요** (이 스킬의 써야 하는 요청과 다른 스킬 요청은 루프에서 다시 재지 않았습니다):
+
+```
+git checkout <이 브랜치> && python3 evals/run.py --model {entry["model"]} --out evals/results/pr-{name}-{entry["model"]}.jsonl
+```
 
 ## 설명
 
@@ -434,7 +420,7 @@ def pr_body(name: str, entry: dict, history: list[dict]) -> str:
 
 {tries}
 
-수정안은 개선용 요청만 보고 만들었고, 검증용 요청 문장은 수정안을 만드는 쪽에 보여 주지 않았습니다.
+수정안은 개선용 요청만 보고 만들었고, 검증용 요청 문장은 수정안을 만드는 쪽에 보여 주지 않았습니다 (전체 회귀에서 검증용으로 확인).
 시도별 평가 기록은 `evals/history/{name}/` 에 있습니다.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
@@ -451,7 +437,7 @@ def open_pr(name: str, entry: dict) -> None:
     branch = f"improve/{name}-{datetime.now():%m%d-%H%M}"
     git("checkout", "-q", "-b", branch)
     git("add", f"plugins/{PLUGIN}/skills/{name}/SKILL.md", f"evals/history/{name}", "evals/results")
-    git("commit", "-q", "-m", f"fix/{name} 스킬 설명 수정 (검증용 {pct(entry['val_before'])} → {pct(entry['val_after'])})")
+    git("commit", "-q", "-m", f"fix/{name} 스킬 설명 수정 (틀렸던 요청 {entry['fixed_count']}/{entry['failing']} 고쳐짐)")
     git("push", "-q", "-u", "origin", branch)
     subprocess.run(["gh", "pr", "create", "--title", f"fix/{name} 스킬 설명 수정 (자동 개선)",
                     "--body", pr_body(name, entry, history), "--base", "main", "--head", branch], cwd=REPO, check=True)
@@ -487,11 +473,12 @@ def dry_run(args) -> None:
     done = {(r["id"], r["run"]) for r in rows}
     missing = sum(1 for c in mine for n in range(1, args.repeat + 1) if (c["id"], n) not in done)
     missing += sum(1 for c in others if (c["id"], 1) not in done)
-    base_rate = rates([r for r in rows if r["id"] in {c["id"] for c in train}])
-    failing = sum(1 for c in train if base_rate.get(c["id"], 1.0) < 1.0)
-    quick = len(train)
-    full_check = len(mine) * args.repeat - len(train) + len(others)  # 빠른 검사에서 돈 개선용 1번째는 건너뛴다
-    worst = missing + args.max_tries * (quick + full_check)
+    base_rate = rates([r for r in rows if r["id"] in {c["id"] for c in mine}])
+    failing = sum(1 for c in mine if base_rate.get(c["id"], 1.0) < 1.0)
+    guards = sum(1 for c in mine if c["kind"] == "should_not")
+    per_try = failing + guards
+    worst = missing + args.max_tries * per_try
+    regress = len(mine) + len(others)
     log_path = HERE / "history" / name / "log.jsonl"
     history = [json.loads(x) for x in log_path.read_text(encoding="utf-8").splitlines()] if log_path.exists() else []
     ids = {c["id"] for c in train}
@@ -505,13 +492,17 @@ def dry_run(args) -> None:
 | 단계 | 실행 수 |
 |---|---|
 | 기준 채우기 ({args.baseline.name}에 빠진 것) | {missing} |
-| 시도마다 빠른 검사 1단계 (틀렸던 개선용만 × 1, 하나도 안 고쳐지면 여기서 기각) | {failing} |
-| 시도마다 빠른 검사 2단계 (나머지 개선용 × 1, 안 오르면 여기서 기각) | {quick - failing} |
-| 시도마다 전체 검사 (이 스킬 × {args.repeat} + 다른 스킬 검증용 × 1) | {full_check} (+ 깨진 요청 다시 확인 2번씩) |
-| 수정안 만들기 (LLM) | 시도마다 1 |
+| 시도마다 1단계: 기준에서 틀렸던 요청 × 1 (하나도 안 고쳐지면 기각) | {failing} |
+| 시도마다 2단계: 이 스킬의 쓰면 안 되는 요청 × 1 (스킬을 고르면 기각) | {guards} (+ 고른 것만 1번 더) |
+| 시도마다 수정안 만들기 (LLM, 입력 약 4만 토큰) | 1 |
 
-가장 적게: {missing + (failing or quick)}번 (첫 시도가 빠른 검사 1단계에서 기각) · 가장 많이: 약 {worst}번
-선택 평가 1번에 입력 약 3만 토큰 → 가장 많을 때 약 {worst * 30_000 / 1_000_000:.1f}백만 토큰
+| 경우 | 선택 평가 | 입력 토큰 (평가 1번 ≈ 3.2만) |
+|---|---|---|
+| 첫 시도가 1단계에서 기각 | {missing + failing}번 | 약 {((missing + failing) * 32 + 40) / 10:.0f}만 |
+| 시도 1번을 끝까지 (채택 또는 2단계 기각) | {missing + per_try}번 | 약 {((missing + per_try) * 32 + 40) / 10:.0f}만 |
+| 최대 {args.max_tries}번 시도를 다 | {worst}번 | 약 {(worst * 32 + args.max_tries * 40) / 10:.0f}만 |
+
+채택되면 PR 머지 전에 전체 회귀를 한 번: 선택 평가 {regress}번, 약 {regress * 32 / 10:.0f}만 토큰 (루프 밖, 사람이 돌림)
 
 # 수정안 프롬프트 (시도 {len(history) + 1}에 보낼 내용, 기준 결과 기준)
 
