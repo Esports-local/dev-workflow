@@ -9,3 +9,9 @@
 {"id": "local-up-n4", "skill": "esports-dev:local-up", "kind": "should_not", "split": "train", "repo": "esports-api", "prompt": "이 api 를 ECS Fargate 로 배포하려면 어떻게 해야 해?", "expect": null}
 {"id": "local-up-n5", "skill": "esports-dev:local-up", "kind": "should_not", "split": "val", "repo": "esports-analyzer", "prompt": "Dockerfile 을 CUDA 베이스 이미지로 바꾸면 뭐가 달라져?", "expect": null}
 {"id": "local-up-n6", "skill": "esports-dev:local-up", "kind": "should_not", "split": "val", "repo": "esports-api", "prompt": "MinIO 버킷에서 hls 폴더만 공개 읽기인 이유를 설명해 줘", "expect": null}
+{"id": "local-up-s7", "skill": "esports-dev:local-up", "kind": "should", "split": "train", "repo": "esports-ui", "prompt": "화면 고친 거 브라우저로 직접 확인해 보고 싶어", "expect": "esports-dev:local-up"}
+{"id": "local-up-s8", "skill": "esports-dev:local-up", "kind": "should", "split": "train", "repo": "esports-api", "prompt": "api 가 502 를 내는데 analyzer 가 죽은 것 같아. 상태 좀 봐 줘", "expect": "esports-dev:local-up"}
+{"id": "local-up-s9", "skill": "esports-dev:local-up", "kind": "should", "split": "train", "repo": "esports-analyzer", "prompt": "코드 바꿨는데 analyzer 서버에 반영이 안 돼", "expect": "esports-dev:local-up"}
+{"id": "local-up-s10", "skill": "esports-dev:local-up", "kind": "should", "split": "val", "repo": "esports-api", "prompt": "맥 재부팅했어. 개발 환경 다시 켜 줘", "expect": "esports-dev:local-up"}
+{"id": "local-up-n7", "skill": "esports-dev:local-up", "kind": "should_not", "split": "train", "repo": "esports-analyzer", "prompt": "analyzer 컨테이너 메모리 제한을 8GB 로 올리는 설정 추가해 줘", "expect": null}
+{"id": "local-up-n8", "skill": "esports-dev:local-up", "kind": "should_not", "split": "val", "repo": "esports-api", "prompt": "docker compose 가 뭔지 간단히 설명해 줘", "expect": null}

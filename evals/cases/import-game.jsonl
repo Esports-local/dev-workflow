@@ -10,3 +10,9 @@
 {"id": "import-game-n4", "skill": "esports-dev:import-game", "kind": "should_not", "split": "train", "repo": "esports-ui", "prompt": "영상 추가 화면에서 세트 번호를 드롭다운으로 바꿔 줘", "expect": null}
 {"id": "import-game-n5", "skill": "esports-dev:import-game", "kind": "should_not", "split": "val", "repo": "esports-api", "prompt": "opgg.py 가 경기 페이지에서 어떤 JSON 을 읽는지 설명해 줘", "expect": null}
 {"id": "import-game-n6", "skill": "esports-dev:import-game", "kind": "should_not", "split": "val", "repo": "esports-api", "prompt": "경기 데이터를 DynamoDB 에 넣으려면 테이블을 어떻게 설계해?", "expect": null}
+{"id": "import-game-s7", "skill": "esports-dev:import-game", "kind": "should", "split": "train", "repo": "esports-api", "prompt": "어제 analyzer 로 돌린 lck_final_1080_900-1500s 를 화면에서 볼 수 있게 해 줘", "expect": "esports-dev:import-game"}
+{"id": "import-game-s8", "skill": "esports-dev:import-game", "kind": "should", "split": "train", "repo": "esports-ui", "prompt": "세트 영상 목록에 LCK 결승 1세트가 없네. op.gg 는 32655 야", "expect": "esports-dev:import-game"}
+{"id": "import-game-s9", "skill": "esports-dev:import-game", "kind": "should", "split": "train", "repo": "esports-analyzer", "prompt": "경기 정보가 비어 있는 세트가 있어. 경기 정보 채워서 다시 넣어 줘", "expect": "esports-dev:import-game"}
+{"id": "import-game-s10", "skill": "esports-dev:import-game", "kind": "should", "split": "val", "repo": "esports-api", "prompt": "outputs 에 새로 생긴 결과 폴더들 DB 에 반영해 줘", "expect": "esports-dev:import-game"}
+{"id": "import-game-n7", "skill": "esports-dev:import-game", "kind": "should_not", "split": "train", "repo": "esports-api", "prompt": "GameVideo 에 playback_name 필드가 video_name 이랑 따로 있는 이유가 뭐야?", "expect": null}
+{"id": "import-game-n8", "skill": "esports-dev:import-game", "kind": "should_not", "split": "val", "repo": "esports-analyzer", "prompt": "op.gg 호출 간격을 2초로 늘려 줘", "expect": null}

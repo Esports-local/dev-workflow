@@ -10,3 +10,9 @@
 {"id": "add-endpoint-n4", "skill": "esports-dev:add-endpoint", "kind": "should_not", "split": "train", "repo": "esports-analyzer", "prompt": "evaluate 단계를 추가해 줘", "expect": null}
 {"id": "add-endpoint-n5", "skill": "esports-dev:add-endpoint", "kind": "should_not", "split": "val", "repo": "esports-api", "prompt": "API Gateway 에 Lambda 를 붙여서 엔드포인트를 만들려면?", "expect": null}
 {"id": "add-endpoint-n6", "skill": "esports-dev:add-endpoint", "kind": "should_not", "split": "val", "repo": "esports-api", "prompt": "/games/3 이 500 을 내. 원인 찾아 줘", "expect": null}
+{"id": "add-endpoint-s7", "skill": "esports-dev:add-endpoint", "kind": "should", "split": "train", "repo": "esports-ui", "prompt": "숏폼 목록에서 렌더 시간 말고 파일 크기도 보이게 해 줘", "expect": "esports-dev:add-endpoint"}
+{"id": "add-endpoint-s8", "skill": "esports-dev:add-endpoint", "kind": "should", "split": "train", "repo": "esports-api", "prompt": "/shorts/{id} 결과에 원본 영상 이름도 같이 내려 주면 좋겠는데", "expect": "esports-dev:add-endpoint"}
+{"id": "add-endpoint-s9", "skill": "esports-dev:add-endpoint", "kind": "should", "split": "train", "repo": "esports-analyzer", "prompt": "analyzer 작업 맡길 때 우선순위 값도 받을 수 있게 해 줘", "expect": "esports-dev:add-endpoint"}
+{"id": "add-endpoint-s10", "skill": "esports-dev:add-endpoint", "kind": "should", "split": "val", "repo": "esports-ui", "prompt": "컷 탭에서 장면 종류별 개수를 api 에서 바로 받아 오고 싶어", "expect": "esports-dev:add-endpoint"}
+{"id": "add-endpoint-n7", "skill": "esports-dev:add-endpoint", "kind": "should_not", "split": "train", "repo": "esports-api", "prompt": "/games 목록 응답 모양은 그대로 두고 캐시만 붙여 줘", "expect": null}
+{"id": "add-endpoint-n8", "skill": "esports-dev:add-endpoint", "kind": "should_not", "split": "val", "repo": "esports-ui", "prompt": "api_client.py 의 요청 timeout 을 30초로 늘려 줘", "expect": null}
