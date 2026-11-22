@@ -61,6 +61,10 @@ def normalize(skill: str | None) -> str | None:
     return skill
 
 
+class PluginConflict(RuntimeError):
+    """평가할 플러그인(--plugin-dir)이 아닌 것이 올라왔다. 이대로 재면 결과가 틀리므로 평가 전체를 멈춘다."""
+
+
 def run_once(case: dict, model: str, plugin_dir: Path, root: Path) -> dict:
     """요청 하나를 한 번 실행하고 첫 도구 호출을 돌려준다.
 
@@ -70,8 +74,11 @@ def run_once(case: dict, model: str, plugin_dir: Path, root: Path) -> dict:
     """
     cmd = ["claude", "-p", case["prompt"], "--model", model, "--output-format", "stream-json", "--verbose",
            "--plugin-dir", str(plugin_dir), "--no-session-persistence"]
+    # 세 레포에 설치(project 범위)된 같은 이름의 플러그인은 --plugin-dir 평가본이 대신한다 (2026-11-22 init 으로 확인).
+    # --settings 로 설치본을 끄면 다른 플러그인 설정까지 바뀌어 평가 조건이 달라지므로 쓰지 않고, 아래에서 한 벌인지만 본다
     started = time.time()
     got = first_tool = first_input = error = None
+    conflict = False
     tokens = 0
     env = {**os.environ, "ESPORTS_EVAL": "1"}  # 사용 기록 훅이 평가 실행을 실제 사용으로 세지 않게 한다
     proc = subprocess.Popen(cmd, cwd=root / case["repo"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
@@ -84,6 +91,14 @@ def run_once(case: dict, model: str, plugin_dir: Path, root: Path) -> dict:
             try:
                 event = json.loads(line)
             except ValueError:
+                continue
+            if event.get("type") == "system" and event.get("subtype") == "init":
+                loaded = [x for x in event.get("plugins") or [] if isinstance(x, dict) and x.get("name") == PLUGIN_NAME]
+                if len(loaded) != 1 or Path(loaded[0].get("path", "")).resolve() != plugin_dir.resolve():
+                    # 평가본이 안 올라왔거나 설치본이 같이 올라왔다 → 평가 조건이 틀렸으니 전체를 멈춘다
+                    error = f"{PLUGIN_NAME} 평가본이 아닌 플러그인이 올라옴: {[x.get('path') for x in loaded]}"
+                    conflict = True
+                    break
                 continue
             if event.get("type") == "result":
                 if event.get("is_error"):
@@ -105,6 +120,8 @@ def run_once(case: dict, model: str, plugin_dir: Path, root: Path) -> dict:
     finally:
         proc.kill()
         proc.wait()
+    if conflict:
+        raise PluginConflict(error)
     return {"got": got, "first_tool": first_tool, "first_input": first_input, "input_tokens": tokens,
             "sec": round(time.time() - started, 1), "error": error}
 

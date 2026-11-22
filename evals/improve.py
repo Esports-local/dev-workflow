@@ -4,6 +4,9 @@
 다시 평가한다 → 요청별로 고쳐짐/새로 깨짐을 적는다 → 검증용 점수가 오르고 다른 스킬이 깨지지 않으면 채택한다.
 기각되면 그 결과를 다음 시도에 알려 주고 다시 한다.
 
+빠른 검사는 두 단계다: 기준에서 틀렸던 개선용 요청만 먼저 1번씩 돌려 하나도 안 고쳐지면 바로 기각하고
+(대부분의 기각이 여기서 끝나 한도를 아낀다), 고쳐진 것이 있으면 나머지 개선용을 돌려 전체가 올랐는지 본다.
+
     python3 evals/improve.py --skill add-endpoint                # 최대 3번 시도, 채택되면 SKILL.md 를 고친다
     python3 evals/improve.py --skill add-endpoint --pr           # 채택되면 브랜치·PR 까지 만든다
     python3 evals/improve.py --skill add-endpoint --propose-only # 수정안만 받아 보고 평가는 하지 않는다
@@ -322,10 +325,26 @@ def improve(args) -> dict | None:
             shutil.copytree(real, candidate)
             write_description(candidate, name, idea["description"])
             try_path = hist_dir / f"try{n}.jsonl"
+            if try_path.exists():  # 전에 한도 등으로 멈춰 로그에 없는 시도의 평가 기록. 다른 수정안으로 잰 것이라 쓰지 않는다
+                stopped = try_path.with_name(f"try{n}-stopped-{datetime.now():%m%d%H%M}.jsonl")
+                try_path.rename(stopped)
+                print(f"  멈춘 시도의 옛 평가 기록을 {stopped.name} 로 옮김", file=sys.stderr)
 
-            quick = rates(ensure_runs(train, 1, try_path, candidate, args))  # 빠른 확인: 개선용 1번
-            entry["train_before"], entry["train_quick"] = score(base, train), score(quick, train)
-            if entry["train_quick"] <= entry["train_before"]:
+            # 빠른 확인 1단계: 기준에서 틀렸던 개선용 요청만. 하나도 안 고쳐지면 나머지는 돌리지 않는다
+            failing = [c for c in train if base.get(c["id"], 1.0) < 1.0]
+            first = rates(ensure_runs(failing, 1, try_path, candidate, args))
+            fixed_first = [c for c in failing if first.get(c["id"], 0.0) > base[c["id"]]]
+            entry["train_before"] = score(base, train)
+            if failing and not fixed_first:
+                entry.update(train_quick=None, ledger=ledger(base, first, failing),
+                             reason=f"틀렸던 개선용 요청 {len(failing)}개가 하나도 안 고쳐짐 (나머지 개선용은 안 돌림)")
+                quick = None
+            else:  # 2단계: 나머지 개선용 1번 (1단계에서 돈 것은 건너뜀)
+                quick = rates(ensure_runs(train, 1, try_path, candidate, args))
+                entry["train_quick"] = score(quick, train)
+            if quick is None:
+                pass
+            elif entry["train_quick"] <= entry["train_before"]:
                 entry.update(reason=f"개선용이 안 오름 ({pct(entry['train_before'])} → {pct(entry['train_quick'])})",
                              ledger=ledger(base, quick, train))
             else:
@@ -468,6 +487,8 @@ def dry_run(args) -> None:
     done = {(r["id"], r["run"]) for r in rows}
     missing = sum(1 for c in mine for n in range(1, args.repeat + 1) if (c["id"], n) not in done)
     missing += sum(1 for c in others if (c["id"], 1) not in done)
+    base_rate = rates([r for r in rows if r["id"] in {c["id"] for c in train}])
+    failing = sum(1 for c in train if base_rate.get(c["id"], 1.0) < 1.0)
     quick = len(train)
     full_check = len(mine) * args.repeat - len(train) + len(others)  # 빠른 검사에서 돈 개선용 1번째는 건너뛴다
     worst = missing + args.max_tries * (quick + full_check)
@@ -484,11 +505,12 @@ def dry_run(args) -> None:
 | 단계 | 실행 수 |
 |---|---|
 | 기준 채우기 ({args.baseline.name}에 빠진 것) | {missing} |
-| 시도마다 빠른 검사 (개선용 × 1, 안 오르면 여기서 기각) | {quick} |
+| 시도마다 빠른 검사 1단계 (틀렸던 개선용만 × 1, 하나도 안 고쳐지면 여기서 기각) | {failing} |
+| 시도마다 빠른 검사 2단계 (나머지 개선용 × 1, 안 오르면 여기서 기각) | {quick - failing} |
 | 시도마다 전체 검사 (이 스킬 × {args.repeat} + 다른 스킬 검증용 × 1) | {full_check} (+ 깨진 요청 다시 확인 2번씩) |
 | 수정안 만들기 (LLM) | 시도마다 1 |
 
-가장 적게: {missing + quick}번 (첫 시도가 빠른 검사에서 기각) · 가장 많이: 약 {worst}번
+가장 적게: {missing + (failing or quick)}번 (첫 시도가 빠른 검사 1단계에서 기각) · 가장 많이: 약 {worst}번
 선택 평가 1번에 입력 약 3만 토큰 → 가장 많을 때 약 {worst * 30_000 / 1_000_000:.1f}백만 토큰
 
 # 수정안 프롬프트 (시도 {len(history) + 1}에 보낼 내용, 기준 결과 기준)
