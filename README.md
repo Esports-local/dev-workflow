@@ -31,7 +31,7 @@ plugins/esports-dev/
   skills/<스킬>/SKILL.md
   scripts/dev.sh             # local-up 이 부르는 실행 스크립트
   hooks/usage.py             # 스킬 사용 기록 훅 (hooks.json)
-evals/cases/<스킬>.jsonl     # 테스트 요청 (스킬마다 써야 하는 요청 6 + 쓰면 안 되는 요청 6, train 8 · val 4)
+evals/cases/<스킬>.jsonl     # 테스트 요청 (스킬마다 써야 하는 요청 10 + 쓰면 안 되는 요청 7~8, 개선용 train · 검증용 val)
 evals/run.py                 # 선택 평가
 evals/worker.py              # 화면에서 요청한 평가를 맥에서 돌리는 실행기
 evals/improve.py             # 설명 자동 개선 (실패 분석 → 수정안 → 전후 비교 → PR)
@@ -50,7 +50,7 @@ evals/results/<묶음>.jsonl   # 평가 실행 기록
 ## 선택 평가
 
 ```
-python3 evals/run.py                      # 전체 36개 × 2번, sonnet
+python3 evals/run.py                      # 전체 53개 × 2번, sonnet (약 106번, 입력 약 340만 토큰)
 python3 evals/run.py --split val --repeat 3
 python3 evals/run.py --report evals/results/<파일>.jsonl
 ```
@@ -108,13 +108,26 @@ python3 evals/improve.py --skill add-endpoint                  # 최대 3번 시
 python3 evals/improve.py --skill add-endpoint --pr             # 채택되면 브랜치와 PR 까지
 ```
 
-1. 개선용(train) 실패 요청과 지난 시도 기록을 `claude -p`에 주고 원인 가설 하나와 새 설명을 받는다
-2. 플러그인 복사본에 적용해 개선용 요청을 1번씩 돌린다. 안 오르면 기각
-3. 그 스킬의 요청 전부를 2번씩, 다른 스킬의 검증용(val) 요청을 1번씩 돌린다
-4. 검증용 점수가 오르고 다른 스킬이 깨지지 않으면 채택한다. 기각이면 결과를 다음 시도에 알려 준다
+1. 개선용(train) 실패 요청과 지난 시도 기록을 `claude -p`에 주고 원인 종류(범위 · 우선순위 · 앞부분 · 경계) 하나와 가설, 새 설명을 받는다
+2. 플러그인 복사본에 적용해 기준에서 틀렸던 요청만 1번씩 돌린다. 하나도 안 고쳐지면 기각
+3. 그 스킬의 "쓰면 안 되는" 요청을 1번씩 돌린다. 스킬을 고른 요청은 1번 더 돌려 두 번 다 고르면 기각 (설명을 넓히다 생기는 오선택)
+4. 둘 다 통과하면 채택한다. 기각이면 결과를 다음 시도에 알려 준다. 채택된 수정안은 PR 머지 전에 전체 회귀를 한 번 돌린다
+
+시도 한 번에 선택 평가 최대 약 10번(입력 약 33만 토큰)이다. 돌리기 전에 `--dry-run`으로 경우별 실행 수와 토큰을 본다.
 
 수정안을 만드는 쪽에는 검증용 요청 문장을 보여 주지 않는다. 시도마다 가설·변경·요청별 전후 결과가 `evals/history/<스킬>/log.jsonl`에 남는다.
 채택된 결과는 `evals/results/after-1-<모델>.jsonl`에 쌓여 화면의 "수정 후 1차"로 보인다.
+
+## 지금 결과 (Sonnet)
+
+| 결과 | 정확도 | add-endpoint | import-game | local-up |
+|---|---|---|---|---|
+| `baseline-sonnet` (11-17, 처음) | 71% | 33% | 50% | 100% |
+| `after-1-sonnet` (11-18, 레포 CLAUDE.md 에 "스킬 먼저" 안내) | 97% | 100% | 100% | 83% |
+| `after-2-sonnet` (11-22, 어려운 요청 18개 추가) | 98% | 90% | 100% | 100% |
+
+스킬별 숫자는 재현율(써야 할 때 고른 비율)이고, 지금 테스트 요청 기준으로 다시 판정한 값이다. 오선택(다른 스킬을 고름)은 지금까지 0번이다.
+틀린 것은 전부 "스킬 대신 Bash · Read 부터" 형태였다. 남은 누락 1개(`add-endpoint-s7` "숏폼 목록에 파일 크기도 보이게")로 설명 개선을 시도했다: 시도 3(원인: 우선순위) 기각, 시도 4(원인: 경계)는 사용 한도로 평가 전에 멈췄다 (`evals/history/add-endpoint/`). 분류 보고서: [evals/reports/classify-2026-11-22.md](evals/reports/classify-2026-11-22.md) (3개 모두 유지)
 
 ## 유지 · 정리 분류
 
