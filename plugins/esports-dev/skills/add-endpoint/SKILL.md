@@ -1,6 +1,6 @@
 ---
 name: add-endpoint
-description: esports 레포에 HTTP 엔드포인트를 새로 만들거나 요청 · 응답 모양을 바꿀 때 같이 고쳐야 하는 곳을 순서대로 처리한다 — 스펙 확인, esports-api 의 api/<엔드포인트>/ 폴더 · urls · tests, esports-ui 의 web/api_client.py · 화면, analyzer 의 api/<엔드포인트>/schemas.py 와 api 쪽 analyzer.py. "엔드포인트 추가해 줘", "/cases API 만들어 줘", "응답에 필드 하나 더 넣어 줘", "analyzer /jobs 요청 모양 바꿔" 처럼 레포 사이 연동 스펙이 바뀌는 작업에 사용한다. 화면만 고치는 작업이나 파이프라인 단계 추가에는 쓰지 않는다.
+description: esports 레포에서 "이 값도 보이게 해 줘"처럼 목록·상세 화면에 새 항목이나 속성(파일 크기·시간·진행률 등)을 보여 달라는 요청, 엔드포인트 추가, 요청·응답 필드 변경, 레포 사이 api 호출 추가에 쓴다. 표시할 값이 api 응답에 있는지 확인하는 일이 이 스킬의 첫 단계이므로, ui 템플릿·뷰를 grep·Read·Bash로 열기 전에 먼저 부른다. 없으면 esports-api·esports-ui(web/api_client.py)·analyzer 연동과 스펙을 함께 고친다. 이미 화면에 나오는 값의 색·배치·뷰 쿼리 최적화, 응답 모양 그대로 캐시·테스트, 파이프라인 단계 추가에는 쓰지 않는다.
 ---
 
 # add-endpoint — 엔드포인트 추가 · 변경
